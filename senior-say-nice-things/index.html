@@ -527,23 +527,18 @@
   const CONFIG = {
 
     /* Google Sheet published as CSV ─────────────────────────────
-       In your Sheet: File ▸ Share ▸ Publish to web
-       Choose the Form Responses tab ▸ CSV ▸ Publish ▸ copy URL    */
-    CSV_URL: 'PASTE_YOUR_CSV_URL_HERE',
+       Form Responses 1 tab, published as CSV                      */
+    CSV_URL: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSeOzoe6qcZuh8B2FM_c5IYfosQT7PqaTbnrXHv8DkBGjB_SMKgEWPCnjGt5YfX0w7BTh8YvrVZE19q/pub?gid=626693752&single=true&output=csv',
 
-    /* Google Form formResponse endpoint ─────────────────────────
-       Open your live Google Form, view page source (Ctrl+U),
-       search for action=" — copy the URL ending in /formResponse  */
-    FORM_URL: 'https://docs.google.com/forms/d/e/REPLACE_FORM_ID/formResponse',
+    /* Google Form formResponse endpoint ─────────────────────────  */
+    FORM_URL: 'https://docs.google.com/forms/d/e/1FAIpQLSdvsgZTrInOzr0zeen-Epucx1JDdSv2CLr-HUW2uyGXpdeoVQ/formResponse',
 
-    /* Google Form entry IDs ─────────────────────────────────────
-       In the same page source, find name="entry.#########" for
-       each of the 4 questions you created. Paste the numbers.     */
+    /* Google Form entry IDs ─────────────────────────────────────  */
     FIELDS: {
-      author:  'entry.REPLACE_1',   // 1st question: Author Name
-      pin:     'entry.REPLACE_2',   // 2nd question: PIN
-      subject: 'entry.REPLACE_3',   // 3rd question: Subject Name
-      note:    'entry.REPLACE_4',   // 4th question: Note Text
+      author:  'entry.1718798237',  // Author Name
+      pin:     'entry.862102883',   // PIN
+      subject: 'entry.283827139',   // Subject Name
+      note:    'entry.1760620660',  // Note Text
     },
 
     /* Admin panel password ───────────────────────────────────────
