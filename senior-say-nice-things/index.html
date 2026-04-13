@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kind Notes</title>
+  <!--
+    KIND NOTES — Single-file web app
+    ════════════════════════════════════════════════════════════
+    HOW IT WORKS
+      Students pick their name + PIN to log in. They write a short
+      note for each classmate. Notes save silently to a Google Form
+      (one row per note). On the next login, previous notes load
+      from the Sheet published as a public CSV.
+
+      Admin section (password-protected) includes:
+        • Student list management (paste new list each year)
+        • Completion tracker — who has/hasn't written about whom
+        • Browse all notes written about a specific student
+        • Export / print card per student (superlatives placeholder)
+
+    SETUP CHECKLIST — fill in CONFIG below, then push to GitHub Pages
+      [ ] Create a Google Form with exactly 4 Short Answer questions:
+            1. Author Name
+            2. PIN
+            3. Subject Name
+            4. Note Text
+      [ ] Copy the live form's formResponse URL → FORM_URL
+      [ ] In the linked Sheet: File > Share > Publish to web > CSV
+          Copy that URL → CSV_URL
+      [ ] Find entry IDs (view form source, look for name="entry.###")
+          Paste them into CONFIG.FIELDS
+      [ ] Set ADMIN_PASSWORD to something you'll remember
+      [ ] Update CLASS_NAME and the default STUDENTS list
+      [ ] Push to your GitHub repo at /project2/index.html
+
+    PRIVACY NOTE
+      The CSV URL is publicly readable — that's what allows students
+      to reload their own prior notes. Notes about a student are only
+      visible in the Admin section. PINs appear in the sheet, which
+      is fine for this "don't peek at Christmas presents" use case.
+      Students who look hard enough CAN find the raw CSV; the notes
+      written *about* them are visible there. This is low-stakes.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:wght@600;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* ══════════════════════════════════════════════════
+     * DESIGN TOKENS
+     * Warm / light theme — friendly and positive.
+     * ══════════════════════════════════════════════════ */
+    :root {
+      --bg:            #fef9f0;   /* warm cream page background  */
+      --surface:       #ffffff;   /* white cards / inputs        */
+      --surface-warm:  #fffdf7;   /* slightly tinted white       */
+      --border:        #e7e5df;   /* soft warm border            */
+      --border-focus:  #d97706;   /* amber focus ring            */
+      --primary:       #92400e;   /* warm brown — main CTA       */
+      --primary-hover: #78350f;
+      --accent:        #d97706;   /* amber — progress / alerts   */
+      --accent-light:  #fef3c7;   /* pale amber fill             */
+      --text:          #292524;   /* near-black warm             */
+      --text-muted:    #78716c;   /* warm gray                   */
+      --success:       #15803d;
+      --error:         #b91c1c;
+      --progress-fill: #f59e0b;
+      --radius:        10px;
+      --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
+    }
+
+    /* ══════════════════════════════════════════════════
+     * RESET & BASE
+     * ══════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    h1, h2 { font-family: 'Lora', Georgia, serif; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ══════════════════════════════════════════════════
+     * SHARED FORM ELEMENTS
+     * ══════════════════════════════════════════════════ */
+    .input {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-size: 15px;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text);
+      transition: border-color .15s;
+    }
+    .input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(217,119,6,.15);
+    }
+    select.input { cursor: pointer; }
+    textarea.input { resize: vertical; }
+
+    label {
+      display: block;
+      font-size: .875rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    .hint {
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ══════════════════════════════════════════════════
+     * BUTTONS
+     * ══════════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 18px;
+      border: none;
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, transform .1s, box-shadow .15s;
+    }
+    .btn:active:not(:disabled) { transform: translateY(1px); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      box-shadow: 0 3px 10px rgba(120,53,15,.25);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--text-muted);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .btn-sm   { padding: 5px 12px; font-size: .8rem; }
+    .btn-row  { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+    /* ══════════════════════════════════════════════════
+     * LOGIN SCREEN
+     * ══════════════════════════════════════════════════ */
+    .login-wrap {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 18px;
+    }
+
+    .login-header    { text-align: center; }
+    .login-emoji     { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+    .login-title     { font-size: 2rem; color: var(--primary); margin-bottom: 4px; }
+    .login-subtitle  { color: var(--text-muted); }
+
+    .login-card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .admin-link { font-size: .8rem; color: var(--text-muted); text-align: center; }
+
+    /* ══════════════════════════════════════════════════
+     * NOTES SCREEN — TOP BAR
+     * ══════════════════════════════════════════════════ */
+    .notes-wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 0 16px 48px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      margin: 0 -16px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .topbar-left  { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .topbar-user  { font-size: .85rem; color: var(--text-muted); }
+
+    /* ══════════════════════════════════════════════════
+     * PROGRESS BAR
+     * ══════════════════════════════════════════════════ */
+    .progress-wrap {
+      background: var(--surface-warm);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .progress-count    { font-weight: 600; color: var(--text); }
+    .progress-bar-bg   { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--progress-fill); border-radius: 99px; transition: width .4s ease; }
+    .progress-complete { margin-top: 8px; font-size: .85rem; color: var(--success); font-weight: 600; }
+
+    /* ══════════════════════════════════════════════════
+     * SAVE BAR
+     * ══════════════════════════════════════════════════ */
+    .save-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .save-status         { font-size: .85rem; display: flex; align-items: center; gap: 5px; }
+    .save-status.unsaved { color: var(--accent); }
+    .save-status.saved   { color: var(--success); }
+    .unsaved-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; display: inline-block; }
+    .saved-check { font-weight: 700; }
+    .autosave-note { font-size: .75rem; color: var(--text-muted); margin-left: auto; }
+
+    /* ══════════════════════════════════════════════════
+     * NOTE CARDS
+     * ══════════════════════════════════════════════════ */
+    .notes-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .note-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      transition: border-color .2s;
+    }
+    .note-card--done {
+      border-color: #d1fae5;
+      background: #fafffe;
+    }
+
+    .note-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .note-student-name { font-weight: 600; }
+    .note-status        { font-size: .75rem; padding: 2px 8px; border-radius: 99px; }
+    .note-status--empty { background: #f5f5f4; color: var(--text-muted); }
+    .note-status--done  { background: #dcfce7; color: #15803d; font-weight: 600; }
+
+    .note-textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: .9rem;
+      color: var(--text);
+      background: var(--surface-warm);
+      resize: vertical;
+      line-height: 1.55;
+      transition: border-color .15s;
+    }
+    .note-textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(217,119,6,.12);
+    }
+
+    /* ══════════════════════════════════════════════════
+     * ADMIN SHELL
+     * ══════════════════════════════════════════════════ */
+    .admin-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+
+    .admin-tabs {
+      display: flex;
+      border-bottom: 2px solid var(--border);
+      background: var(--surface);
+      padding: 0 24px;
+      overflow-x: auto;
+    }
+    .admin-tab {
+      padding: 11px 16px;
+      border: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: .875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      white-space: nowrap;
+      transition: color .15s;
+    }
+    .admin-tab:hover       { color: var(--text); }
+    .admin-tab--active     { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+    .admin-content  { padding: 28px 24px; max-width: 900px; }
+    .admin-section h2 {
+      font-size: 1.25rem;
+      color: var(--primary);
+      margin-bottom: 6px;
+    }
+    .admin-section > .hint { margin-bottom: 14px; }
+
+    .admin-paste-area   { font-family: 'Courier New', monospace; font-size: .875rem; }
+
+    /* Tracker table */
+    .tracker-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: .875rem; }
+    .tracker-table th {
+      text-align: left;
+      padding: 8px 12px;
+      background: var(--surface-warm);
+      border-bottom: 2px solid var(--border);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .tracker-table td    { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    .tracker-row--done td { background: #f0fdf4; }
+
+    .mini-progress      { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; min-width: 80px; }
+    .mini-progress-fill { height: 100%; background: var(--progress-fill); border-radius: 99px; }
+
+    .tracker-summary {
+      font-size: .9rem;
+      padding: 10px 14px;
+      background: var(--accent-light);
+      border-radius: 7px;
+      margin-bottom: 10px;
+    }
+
+    /* By-student view */
+    .admin-notes-results { margin-top: 20px; }
+    .admin-notes-heading { font-size: .9rem; margin-bottom: 12px; }
+    .admin-note-item {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      background: var(--surface);
+    }
+    .admin-note-author {
+      font-size: .75rem; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px;
+    }
+    .admin-note-text { font-size: .9rem; line-height: 1.6; }
+
+    /* Export preview */
+    .export-preview {
+      margin-top: 20px;
+      padding: 20px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      min-height: 200px;
+      background: var(--surface-warm);
+    }
+    .print-card h1 {
+      font-size: 1.4rem;
+      color: var(--primary);
+      border-bottom: 2px solid var(--accent-light);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+    .print-note {
+      padding: 10px 14px;
+      border-left: 4px solid var(--accent-light);
+      margin-bottom: 12px;
+      background: var(--surface);
+      border-radius: 0 7px 7px 0;
+    }
+    .print-note .note-author { font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; }
+    .print-note .note-text   { font-size: .9rem; line-height: 1.65; }
+
+    /* ══════════════════════════════════════════════════
+     * TOAST
+     * ══════════════════════════════════════════════════ */
+    .toast {
+      position: fixed;
+      right: 16px; bottom: 16px;
+      max-width: 340px;
+      padding: 11px 16px;
+      border-radius: 9px;
+      font-size: .875rem;
+      font-weight: 500;
+      color: #fff;
+      background: #1c1917;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .22s, transform .22s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    .toast--show    { opacity: 1; transform: translateY(0); }
+    .toast--success { background: #15803d; }
+    .toast--error   { background: #b91c1c; }
+    .toast--info    { background: #1d4ed8; }
+
+    /* ══════════════════════════════════════════════════
+     * INSTRUCTION BANNER
+     * Shown above the notes list — stays visible the
+     * whole time the student is writing.
+     * ══════════════════════════════════════════════════ */
+    .instructions {
+      background: var(--accent-light);
+      border: 1.5px solid #fcd34d;
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      font-size: .875rem;
+      line-height: 1.65;
+    }
+    .instructions-heading {
+      font-weight: 700;
+      font-size: .95rem;
+      color: var(--primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .instructions ul {
+      padding-left: 18px;
+      margin: 0;
+    }
+    .instructions li {
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    .instructions li:last-child { margin-bottom: 0; }
+    .instructions strong { color: var(--primary); }
+    .instructions .privacy-line {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #fcd34d;
+      font-size: .8rem;
+      color: var(--text-muted);
+    }
+
+    /* ══════════════════════════════════════════════════
+     * RESPONSIVE
+     * ══════════════════════════════════════════════════ */
+    @media (max-width: 500px) {
+      .notes-wrap      { padding: 0 10px 40px; }
+      .topbar          { padding: 8px 10px; }
+      .admin-content   { padding: 18px 12px; }
+      .admin-tabs      { padding: 0 8px; }
+      .admin-tab       { padding: 10px 10px; font-size: .8rem; }
+      .autosave-note   { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- All views render into this container -->
+  <div id="app"></div>
+
+  <!-- Silent form submissions target this hidden iframe -->
+  <iframe id="submit-frame" name="submit-frame" style="display:none" title="form target"></iframe>
+
+  <!-- Toast notification -->
+  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <script>
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 1 — CONFIGURATION
+   * Fill everything in here before deploying.
+   * ════════════════════════════════════════════════════════════════ */
+
+  const CONFIG = {
+
+    /* Google Sheet published as CSV ─────────────────────────────
+       In your Sheet: File ▸ Share ▸ Publish to web
+       Choose the Form Responses tab ▸ CSV ▸ Publish ▸ copy URL    */
+    CSV_URL: 'PASTE_YOUR_CSV_URL_HERE',
+
+    /* Google Form formResponse endpoint ─────────────────────────
+       Open your live Google Form, view page source (Ctrl+U),
+       search for action=" — copy the URL ending in /formResponse  */
+    FORM_URL: 'https://docs.google.com/forms/d/e/REPLACE_FORM_ID/formResponse',
+
+    /* Google Form entry IDs ─────────────────────────────────────
+       In the same page source, find name="entry.#########" for
+       each of the 4 questions you created. Paste the numbers.     */
+    FIELDS: {
+      author:  'entry.REPLACE_1',   // 1st question: Author Name
+      pin:     'entry.REPLACE_2',   // 2nd question: PIN
+      subject: 'entry.REPLACE_3',   // 3rd question: Subject Name
+      note:    'entry.REPLACE_4',   // 4th question: Note Text
+    },
+
+    /* Admin panel password ───────────────────────────────────────
+       Change this. It lives in your HTML (visible to anyone who
+       views source), which is fine — admin is just for you.       */
+    ADMIN_PASSWORD: 'kindnotes2025',
+
+    /* Displayed in the login header ─────────────────────────────  */
+    CLASS_NAME: 'Music Tech — 2025–26',
+
+    /* Default student list ──────────────────────────────────────
+       Update each year. You can also paste a new list in the
+       Admin ▸ Student List tab — it saves to localStorage on that
+       device so you don't have to edit this file.                 */
+    STUDENTS: [
+      'Alex B',    'Bailey C',  'Cameron D', 'Dakota E',
+      'Emery F',   'Finley G',  'Harper H',  'Indie J',
+      'Jordan K',  'Kendall L', 'Logan M',   'Morgan N',
+      'Nova P',    'Parker Q',  'Quinn R',   'River S',
+      'Sage T',    'Taylor U',
+    ],
+  };
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 2 — APPLICATION STATE
+   * ════════════════════════════════════════════════════════════════ */
+
+  const state = {
+    view:         'login',      // 'login' | 'notes' | 'admin-login' | 'admin'
+    user:         null,         // logged-in student name
+    pin:          null,         // their 4-digit PIN
+    isNewUser:    false,        // true on very first login (no prior CSV rows)
+    notes:        {},           // { subjectName: { text, savedText } }
+    csvRows:      [],           // parsed CSV rows (all students' data)
+    loading:      false,
+    saving:       false,
+    adminTab:     'students',   // 'students' | 'tracker' | 'byStudent' | 'export'
+    adminStudent: '',           // selected student in by-student tab
+    autoSaveTimer: null,
+    students:     _loadStudentList(),  // active list (localStorage > CONFIG)
+  };
+
+  // Prefer a localStorage-stored list over the hardcoded CONFIG default
+  function _loadStudentList() {
+    try {
+      const raw = localStorage.getItem('kindnotes_students');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr) && arr.length) return arr;
+      }
+    } catch (e) { /* ignore parse errors */ }
+    return [...CONFIG.STUDENTS];
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 3 — CSV FETCHING & PARSING
+   * Google Sheets CSV can contain commas/newlines inside quoted
+   * fields, so we use a proper state-machine parser.
+   * ════════════════════════════════════════════════════════════════ */
+
+  async function fetchCSV() {
+    if (!CONFIG.CSV_URL || CONFIG.CSV_URL.startsWith('PASTE')) {
+      return [];  // not configured yet — demo mode
+    }
+    const sep  = CONFIG.CSV_URL.includes('?') ? '&' : '?';
+    const url  = CONFIG.CSV_URL + sep + '_cb=' + Date.now();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('CSV fetch failed (' + resp.status + ')');
+    return _parseCSV(await resp.text());
+  }
+
+  function _parseCSV(text) {
+    const lines   = text.replace(/\r/g, '').split('\n');
+    let headers   = null;
+    const rows    = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const fields = _splitCSVLine(line);
+      if (!headers) { headers = fields.map(h => h.trim()); continue; }
+      if (fields.length < headers.length) continue;
+      const row = {};
+      headers.forEach((h, i) => { row[h] = (fields[i] || '').trim(); });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function _splitCSVLine(line) {
+    const result = [];
+    let field = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i + 1] === '"') { field += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        result.push(field); field = '';
+      } else {
+        field += ch;
+      }
+    }
+    result.push(field);
+    return result;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 4 — LOGIN / AUTH
+   * ════════════════════════════════════════════════════════════════ */
+
+  async function doLogin(userName, pinInput) {
+    state.loading = true;
+    render();
+
+    try {
+      const csvRows = await fetchCSV();
+      state.csvRows = csvRows;
+
+      // Rows where this student was the Author
+      const myRows  = csvRows.filter(r => r['Author'] === userName);
+      const isNew   = myRows.length === 0;
+
+      // PIN check: use the oldest-recorded PIN as canonical.
+      // (If a student forgets their PIN, delete their rows in the Sheet
+      //  to let them reset.)
+      if (!isNew) {
+        const oldest = [...myRows].sort(
+          (a, b) => new Date(a['Timestamp']) - new Date(b['Timestamp'])
+        )[0];
+        if (oldest['PIN'] !== pinInput) {
+          state.loading = false;
+          render();
+          showToast('Incorrect PIN. Try again.', 'error');
+          return;
+        }
+      }
+
+      // For each subject, take the most-recent note the student has written
+      const latestBySubject = {};
+      myRows.forEach(row => {
+        const subj = row['Subject'];
+        const ex   = latestBySubject[subj];
+        if (!ex || new Date(row['Timestamp']) > new Date(ex.ts)) {
+          latestBySubject[subj] = { text: row['Note'] || '', ts: row['Timestamp'] };
+        }
+      });
+
+      // Build initial notes state
+      const notes = {};
+      state.students
+        .filter(s => s !== userName)
+        .forEach(s => {
+          const prior = latestBySubject[s];
+          notes[s] = { text: prior?.text ?? '', savedText: prior?.text ?? '' };
+        });
+
+      state.user      = userName;
+      state.pin       = pinInput;
+      state.notes     = notes;
+      state.isNewUser = isNew;
+      state.view      = 'notes';
+      state.loading   = false;
+
+      _startAutoSave();
+      render();
+
+      if (isNew) {
+        showToast('Welcome! Your PIN has been set. Start writing kind notes! 💛', 'success', 5000);
+      } else {
+        const n = Object.values(notes).filter(n => n.text.trim()).length;
+        showToast(`Welcome back! You've written about ${n} classmate${n !== 1 ? 's' : ''} so far.`, 'success', 4000);
+      }
+
+    } catch (err) {
+      state.loading = false;
+      render();
+      showToast('Error loading data. Check your connection and try again.', 'error');
+      console.error('Login error:', err);
+    }
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 5 — SAVING
+   * Each note is a separate silent POST to the Google Form.
+   * Only notes changed since the last save are submitted.
+   * ════════════════════════════════════════════════════════════════ */
+
+  function _getDirtyNotes() {
+    return Object.entries(state.notes)
+      .filter(([, n]) => n.text !== n.savedText)
+      .map(([subject, n]) => ({ subject, text: n.text }));
+  }
+
+  function _submitOne(subject, noteText) {
+    return new Promise(resolve => {
+      const iframe = document.getElementById('submit-frame');
+      const form   = document.createElement('form');
+      form.method  = 'POST';
+      form.action  = CONFIG.FORM_URL;
+      form.target  = 'submit-frame';
+
+      const payload = {
+        [CONFIG.FIELDS.author]:  state.user,
+        [CONFIG.FIELDS.pin]:     state.pin,
+        [CONFIG.FIELDS.subject]: subject,
+        [CONFIG.FIELDS.note]:    noteText,
+      };
+      Object.entries(payload).forEach(([name, value]) => {
+        const inp = document.createElement('input');
+        inp.type  = 'hidden';
+        inp.name  = name;
+        inp.value = value;
+        form.appendChild(inp);
+      });
+
+      document.body.appendChild(form);
+
+      const cleanup = () => {
+        iframe.removeEventListener('load', onLoad);
+        if (form.parentNode) document.body.removeChild(form);
+        resolve();
+      };
+      const onLoad = () => cleanup();
+      iframe.addEventListener('load', onLoad);
+      form.submit();
+
+      // Safety: resolve after 8s even if iframe never fires
+      setTimeout(cleanup, 8000);
+    });
+  }
+
+  async function saveNotes(auto = false) {
+    const dirty = _getDirtyNotes();
+
+    if (!dirty.length) {
+      if (!auto) showToast('Nothing to save — all up to date.', 'info');
+      return;
+    }
+
+    // Demo mode: form not configured, just pretend
+    if (CONFIG.FORM_URL.includes('REPLACE')) {
+      dirty.forEach(({ subject }) => { state.notes[subject].savedText = state.notes[subject].text; });
+      _updateSaveStatus();
+      showToast(`${dirty.length} note${dirty.length > 1 ? 's' : ''} saved (demo mode) ✓`, 'success');
+      return;
+    }
+
+    state.saving = true;
+    _updateSaveBtn();
+
+    for (let i = 0; i < dirty.length; i++) {
+      try {
+        await _submitOne(dirty[i].subject, dirty[i].text);
+        state.notes[dirty[i].subject].savedText = dirty[i].text;
+      } catch (err) {
+        console.error('Save failed for:', dirty[i].subject, err);
+      }
+      if (i < dirty.length - 1) await _sleep(300);
+    }
+
+    state.saving = false;
+    _updateSaveBtn();
+    _updateSaveStatus();
+
+    const label = auto ? 'Auto-saved' : 'Saved';
+    showToast(`${label} ${dirty.length} note${dirty.length > 1 ? 's' : ''} ✓`, 'success', auto ? 2000 : 3000);
+  }
+
+  // Update save status text in-place (avoids full re-render)
+  function _updateSaveStatus() {
+    const el = document.querySelector('.save-status');
+    if (!el) return;
+    const dirty = _getDirtyNotes();
+    el.className = `save-status ${dirty.length ? 'unsaved' : 'saved'}`;
+    el.innerHTML = dirty.length
+      ? `<span class="unsaved-dot"></span> ${dirty.length} unsaved change${dirty.length > 1 ? 's' : ''}`
+      : `<span class="saved-check">✓</span> All saved`;
+  }
+
+  function _updateSaveBtn() {
+    const btn = document.querySelector('.save-all-btn');
+    if (!btn) return;
+    btn.textContent = state.saving ? 'Saving…' : 'Save All';
+    btn.disabled    = state.saving;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 6 — AUTO-SAVE
+   * ════════════════════════════════════════════════════════════════ */
+
+  function _startAutoSave() {
+    if (state.autoSaveTimer) clearInterval(state.autoSaveTimer);
+    state.autoSaveTimer = setInterval(() => {
+      if (_getDirtyNotes().length) saveNotes(true);
+    }, 90_000);  // every 90 seconds, only if there are changes
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 7 — RENDER ENGINE
+   * ════════════════════════════════════════════════════════════════ */
+
+  function render() {
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+    const views = { login: renderLogin, notes: renderNotes, 'admin-login': renderAdminLogin, admin: renderAdmin };
+    const fn = views[state.view];
+    if (fn) app.appendChild(fn());
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 8 — VIEW: LOGIN
+   * ════════════════════════════════════════════════════════════════ */
+
+  function renderLogin() {
+    const wrap = _div('login-wrap');
+
+    const hdr = _div('login-header');
+    hdr.innerHTML = `
+      <div class="login-emoji">💛</div>
+      <h1 class="login-title">Kind Notes</h1>
+      <p class="login-subtitle">${_esc(CONFIG.CLASS_NAME)}</p>
+    `;
+
+    const card = _div('login-card');
+
+    const nameLbl = _label('name-sel', 'Who are you?');
+    const nameSel = _el('select', { id: 'name-sel', class: 'input' });
+    nameSel.appendChild(_opt('', 'Select your name…', true));
+    [...state.students].sort().forEach(s => nameSel.appendChild(_opt(s, s)));
+
+    const pinLbl  = _label('pin-inp', 'Your PIN');
+    const pinInp  = _el('input', {
+      type: 'password', id: 'pin-inp', class: 'input',
+      placeholder: '4-digit number', maxlength: '4',
+      inputmode: 'numeric', pattern: '[0-9]*',
+    });
+
+    const pinHint = _div('hint');
+    pinHint.textContent = 'First time? Enter any 4-digit number to set your PIN.';
+
+    const loginBtn = _el('button', { class: 'btn btn-primary' });
+    loginBtn.textContent = state.loading ? 'Loading…' : 'Sign In';
+    loginBtn.disabled    = state.loading;
+    loginBtn.addEventListener('click', () => {
+      const name = nameSel.value;
+      const pin  = pinInp.value.trim();
+      if (!name)                { showToast('Please select your name.', 'error'); return; }
+      if (!/^\d{4}$/.test(pin)) { showToast('Please enter a 4-digit PIN.', 'error'); return; }
+      doLogin(name, pin);
+    });
+    pinInp.addEventListener('keydown', e => { if (e.key === 'Enter') loginBtn.click(); });
+
+    card.append(nameLbl, nameSel, pinLbl, pinInp, pinHint, loginBtn);
+
+    const adminLnk = _div('admin-link');
+    adminLnk.innerHTML = '<a href="#" id="_adminLnk">Admin access</a>';
+    adminLnk.querySelector('#_adminLnk').addEventListener('click', e => {
+      e.preventDefault(); state.view = 'admin-login'; render();
+    });
+
+    wrap.append(hdr, card, adminLnk);
+    return wrap;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 9 — VIEW: NOTES (student-facing)
+   * ════════════════════════════════════════════════════════════════ */
+
+  function renderNotes() {
+    const wrap = _div('notes-wrap');
+
+    /* Top bar */
+    const topbar = _div('topbar');
+    const tLeft  = _div('topbar-left');
+    tLeft.innerHTML = '<span style="font-size:1.1rem">💛</span><strong>Kind Notes</strong>';
+    const tRight = _div('topbar-right');
+    const uSpan  = _el('span', { class: 'topbar-user' });
+    uSpan.textContent = `Hi, ${state.user}!`;
+    const logoutBtn = _el('button', { class: 'btn btn-ghost btn-sm' });
+    logoutBtn.textContent = 'Log out';
+    logoutBtn.addEventListener('click', () => {
+      if (_getDirtyNotes().length && !confirm('You have unsaved changes. Log out anyway?')) return;
+      clearInterval(state.autoSaveTimer);
+      Object.assign(state, { view: 'login', user: null, pin: null, notes: {}, csvRows: [] });
+      render();
+    });
+    tRight.append(uSpan, logoutBtn);
+    topbar.append(tLeft, tRight);
+
+    /* Progress bar */
+    const total = Object.keys(state.notes).length;
+    const done  = Object.values(state.notes).filter(n => n.text.trim()).length;
+    const pct   = total ? Math.round(done / total * 100) : 0;
+    const prog  = _div('progress-wrap');
+    prog.innerHTML = `
+      <div class="progress-label">
+        <span>Your progress</span>
+        <span class="progress-count">${done} of ${total} classmates</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:${pct}%"></div>
+      </div>
+      ${done === total && total > 0 ? '<div class="progress-complete">🎉 You\'ve written about everyone!</div>' : ''}
+    `;
+
+    /* Save bar */
+    const dirty = _getDirtyNotes();
+    const saveBar = _div('save-bar');
+    const saveBtn = _el('button', { class: 'btn btn-primary save-all-btn' });
+    saveBtn.textContent = state.saving ? 'Saving…' : 'Save All';
+    saveBtn.disabled    = state.saving;
+    saveBtn.addEventListener('click', () => saveNotes(false));
+
+    const saveSt = _div(`save-status ${dirty.length ? 'unsaved' : 'saved'}`);
+    saveSt.innerHTML = dirty.length
+      ? `<span class="unsaved-dot"></span> ${dirty.length} unsaved change${dirty.length > 1 ? 's' : ''}`
+      : `<span class="saved-check">✓</span> All saved`;
+
+    const autoNote = _div('autosave-note');
+    autoNote.textContent = 'Auto-saves every 90 seconds';
+
+    saveBar.append(saveBtn, saveSt, autoNote);
+
+    /* Instruction banner */
+    const instructions = _div('instructions');
+    instructions.innerHTML = `
+      <div class="instructions-heading">✏️ How to write your notes</div>
+      <ul>
+        <li>
+          Write a <strong>short but sincere note <em>to</em></strong> each person —
+          the goal is to make them feel loved.
+          (Bonus points if you make them ugly-cry. 🥲)
+        </li>
+        <li>
+          <strong>These notes will be read aloud at the DIM Senior Showcase,
+          in front of parents and audience members</strong> — treat everything
+          you write as fully public. No personal info, no embarrassing or
+          inappropriate content. Notes that don't meet that bar will be deleted
+          and you'll be asked to resubmit.
+        </li>
+        <li>
+          <strong>Your note is anonymous by default</strong> — we will not reveal
+          who wrote each comment. If you want credit, include your first name or
+          nickname somewhere in the note itself.
+        </li>
+      </ul>
+      <div class="privacy-line">
+        🔒 <strong>Privacy:</strong> This app collects only your name and the notes you
+        write. Notes are stored in a private Google Sheet accessible only to the
+        teacher. No personal information is shared with other students or third parties.
+        Your name appears only on your own saved notes, never on notes written about you.
+      </div>
+    `;
+
+    /* Notes list — empty notes first, then filled, each group alpha-sorted */
+    const list = _div('notes-list');
+    Object.keys(state.notes)
+      .sort((a, b) => {
+        const aFull = !!state.notes[a].text.trim();
+        const bFull = !!state.notes[b].text.trim();
+        if (aFull !== bFull) return aFull ? 1 : -1;
+        return a.localeCompare(b);
+      })
+      .forEach(subject => list.appendChild(_buildNoteCard(subject)));
+
+    wrap.append(topbar, prog, saveBar, instructions, list);
+    return wrap;
+  }
+
+  function _buildNoteCard(subject) {
+    const n       = state.notes[subject];
+    const hasTxt  = n.text.trim().length > 0;
+    const card    = _div(`note-card${hasTxt ? ' note-card--done' : ''}`);
+
+    const hdr = _div('note-card-header');
+    hdr.innerHTML = `
+      <span class="note-student-name">${_esc(subject)}</span>
+      <span class="note-status ${hasTxt ? 'note-status--done' : 'note-status--empty'}">
+        ${hasTxt ? '✓ written' : 'not yet'}
+      </span>
+    `;
+
+    const ta = _el('textarea', {
+      class: 'note-textarea', rows: '4',
+      placeholder: `Write a short, sincere note to ${subject}. (Anonymous by default — include your name only if you want credit.)`,
+    });
+    ta.value = n.text;
+
+    ta.addEventListener('input', () => {
+      n.text = ta.value;
+      const full = n.text.trim().length > 0;
+      card.classList.toggle('note-card--done', full);
+      const st = hdr.querySelector('.note-status');
+      st.textContent = full ? '✓ written' : 'not yet';
+      st.className   = `note-status ${full ? 'note-status--done' : 'note-status--empty'}`;
+      _updateSaveStatus();
+    });
+
+    card.append(hdr, ta);
+    return card;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 10 — VIEW: ADMIN LOGIN
+   * ════════════════════════════════════════════════════════════════ */
+
+  function renderAdminLogin() {
+    const wrap = _div('login-wrap');
+
+    const hdr = _div('login-header');
+    hdr.innerHTML = '<div class="login-emoji">🔑</div><h1 class="login-title">Admin</h1>';
+
+    const card = _div('login-card');
+    const lbl  = _label('adminPass', 'Admin password');
+    const inp  = _el('input', { type: 'password', id: 'adminPass', class: 'input', placeholder: 'Password' });
+    const btn  = _el('button', { class: 'btn btn-primary' });
+    btn.textContent = state.loading ? 'Loading…' : 'Enter';
+    btn.disabled    = state.loading;
+
+    btn.addEventListener('click', () => {
+      if (inp.value !== CONFIG.ADMIN_PASSWORD) { showToast('Incorrect password.', 'error'); return; }
+      state.loading = true; render();
+      fetchCSV()
+        .then(rows => { state.csvRows = rows; })
+        .catch(() => {})
+        .finally(() => { state.view = 'admin'; state.loading = false; render(); });
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+
+    const back = _div('admin-link');
+    back.innerHTML = '<a href="#" id="_back">← Back to login</a>';
+    back.querySelector('#_back').addEventListener('click', e => { e.preventDefault(); state.view = 'login'; render(); });
+
+    card.append(lbl, inp, btn);
+    wrap.append(hdr, card, back);
+    return wrap;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 11 — VIEW: ADMIN (four tabs)
+   * ════════════════════════════════════════════════════════════════ */
+
+  function renderAdmin() {
+    const wrap = _div('');  // full-page wrap
+
+    /* Header */
+    const hdr = _div('admin-header');
+    const ttl = document.createElement('span');
+    ttl.textContent = '🔑 Kind Notes — Admin';
+    const exitBtn = _el('button', { class: 'btn btn-ghost btn-sm' });
+    exitBtn.textContent = 'Exit admin';
+    exitBtn.addEventListener('click', () => { state.view = 'login'; render(); });
+    hdr.append(ttl, exitBtn);
+
+    /* Tab bar */
+    const tabBar = _div('admin-tabs');
+    [
+      { id: 'students',  label: '👥 Student List'   },
+      { id: 'tracker',   label: '📊 Completion'     },
+      { id: 'byStudent', label: '📖 By Student'     },
+      { id: 'export',    label: '🖨 Export / Print'  },
+    ].forEach(({ id, label }) => {
+      const tab = _el('button', {
+        class: `admin-tab${state.adminTab === id ? ' admin-tab--active' : ''}`,
+      });
+      tab.textContent = label;
+      tab.addEventListener('click', () => { state.adminTab = id; render(); });
+      tabBar.appendChild(tab);
+    });
+
+    /* Content */
+    const content = _div('admin-content');
+    const tabFns  = {
+      students:  _adminTabStudents,
+      tracker:   _adminTabTracker,
+      byStudent: _adminTabByStudent,
+      export:    _adminTabExport,
+    };
+    content.appendChild((tabFns[state.adminTab] || _adminTabStudents)());
+
+    wrap.append(hdr, tabBar, content);
+    return wrap;
+  }
+
+  /* ── Tab: Student List ────────────────────────────────────────── */
+
+  function _adminTabStudents() {
+    const sec = _div('admin-section');
+    sec.innerHTML = `
+      <h2>Student List</h2>
+      <p class="hint">
+        Paste one name per line. <strong>Save List</strong> stores it in this browser's
+        localStorage — takes effect immediately and persists on this device.
+        <strong>Copy as JS Array</strong> gives you text to paste into
+        <code>CONFIG.STUDENTS</code> in the HTML file for a permanent any-device update.
+      </p>
+    `;
+
+    const ta = _el('textarea', { class: 'input admin-paste-area', rows: '22' });
+    ta.value = state.students.join('\n');
+
+    const btnRow = _div('btn-row');
+
+    const saveBtn = _el('button', { class: 'btn btn-primary' });
+    saveBtn.textContent = 'Save List';
+    saveBtn.addEventListener('click', () => {
+      const names = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!names.length) { showToast('No names found.', 'error'); return; }
+      state.students = names;
+      localStorage.setItem('kindnotes_students', JSON.stringify(names));
+      showToast(`Saved ${names.length} names to this device.`, 'success');
+    });
+
+    const copyBtn = _el('button', { class: 'btn btn-ghost' });
+    copyBtn.textContent = 'Copy as JS Array';
+    copyBtn.addEventListener('click', () => {
+      const names = ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+      const out   = `    STUDENTS: [\n      ${names.map(n => `'${n.replace(/'/g, "\\'")}'`).join(',\n      ')},\n    ],`;
+      navigator.clipboard.writeText(out)
+        .then(() => showToast('Copied! Paste into CONFIG.STUDENTS in the HTML file.', 'success'))
+        .catch(() => showToast('Copy failed — select the text manually.', 'error'));
+    });
+
+    const resetBtn = _el('button', { class: 'btn btn-ghost' });
+    resetBtn.textContent = 'Reset to Code Default';
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('Reset to the list hardcoded in CONFIG.STUDENTS?')) return;
+      localStorage.removeItem('kindnotes_students');
+      state.students = [...CONFIG.STUDENTS];
+      ta.value = state.students.join('\n');
+      showToast('Reset to code default.', 'info');
+    });
+
+    btnRow.append(saveBtn, copyBtn, resetBtn);
+    sec.append(ta, btnRow);
+    return sec;
+  }
+
+  /* ── Tab: Completion Tracker ──────────────────────────────────── */
+
+  function _adminTabTracker() {
+    const sec = _div('admin-section');
+    sec.innerHTML = '<h2>Completion Tracker</h2>';
+
+    if (!state.csvRows.length) {
+      const msg = _div('hint');
+      msg.innerHTML = 'No CSV data loaded. Make sure <code>CSV_URL</code> is configured and the sheet is published.';
+      sec.append(msg, _refreshBtn());
+      return sec;
+    }
+
+    // Build author → Set<subject> for non-empty notes
+    const written = {};
+    state.students.forEach(s => { written[s] = new Set(); });
+    state.csvRows.forEach(row => {
+      const { Author: author, Subject: subject, Note: note } = row;
+      if (author && subject && (note || '').trim() && written[author]) {
+        written[author].add(subject);
+      }
+    });
+
+    const maxPeers  = state.students.length - 1;
+    const fullyDone = state.students.filter(s => (written[s]?.size ?? 0) >= maxPeers).length;
+
+    const summary = _div('tracker-summary');
+    summary.innerHTML = `
+      <strong>${fullyDone}</strong> of <strong>${state.students.length}</strong>
+      students have written about all their classmates.
+    `;
+
+    const tbl  = document.createElement('table');
+    tbl.className = 'tracker-table';
+    const head = document.createElement('thead');
+    head.innerHTML = '<tr><th>Student</th><th>Written</th><th>Remaining</th><th style="min-width:100px">Progress</th></tr>';
+    const body = document.createElement('tbody');
+
+    [...state.students].sort().forEach(student => {
+      const cnt  = written[student]?.size ?? 0;
+      const left = Math.max(0, maxPeers - cnt);
+      const pct  = maxPeers ? Math.round(cnt / maxPeers * 100) : 0;
+      const tr   = document.createElement('tr');
+      if (pct >= 100) tr.className = 'tracker-row--done';
+      tr.innerHTML = `
+        <td>${_esc(student)}</td>
+        <td>${cnt} / ${maxPeers}</td>
+        <td>${left > 0 ? left : '✓ done!'}</td>
+        <td><div class="mini-progress"><div class="mini-progress-fill" style="width:${pct}%"></div></div></td>
+      `;
+      body.appendChild(tr);
+    });
+
+    tbl.append(head, body);
+    sec.append(summary, _refreshBtn(), tbl);
+    return sec;
+  }
+
+  /* ── Tab: By Student ─────────────────────────────────────────── */
+
+  function _adminTabByStudent() {
+    const sec = _div('admin-section');
+    sec.innerHTML = `
+      <h2>Notes by Student</h2>
+      <p class="hint">Select a student to see all notes written <em>about</em> them (most recent version per author).</p>
+    `;
+
+    const sel = _el('select', { class: 'input', style: 'max-width:300px' });
+    sel.appendChild(_opt('', 'Select a student…', true));
+    [...state.students].sort().forEach(s => sel.appendChild(_opt(s, s, s === state.adminStudent)));
+
+    sel.addEventListener('change', () => {
+      state.adminStudent = sel.value;
+      const existing = sec.querySelector('.admin-notes-results');
+      if (existing) existing.remove();
+      if (state.adminStudent) sec.appendChild(_buildStudentNoteList(state.adminStudent));
+    });
+
+    sec.appendChild(sel);
+    if (state.adminStudent) sec.appendChild(_buildStudentNoteList(state.adminStudent));
+    return sec;
+  }
+
+  function _buildStudentNoteList(target) {
+    const wrap = _div('admin-notes-results');
+
+    // Collect most-recent note per author for this target
+    const byAuthor = {};
+    state.csvRows
+      .filter(r => r['Subject'] === target && (r['Note'] || '').trim())
+      .forEach(row => {
+        const a = row['Author'];
+        if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
+          byAuthor[a] = { text: row['Note'], ts: row['Timestamp'] };
+        }
+      });
+
+    const entries = Object.entries(byAuthor);
+    if (!entries.length) {
+      const msg = _div('hint');
+      msg.textContent = `No notes about ${target} yet.`;
+      wrap.appendChild(msg);
+      return wrap;
+    }
+
+    const heading = _div('admin-notes-heading');
+    heading.innerHTML = `<strong>${entries.length} note${entries.length > 1 ? 's' : ''} about ${_esc(target)}:</strong>`;
+    wrap.appendChild(heading);
+
+    entries.sort((a, b) => a[0].localeCompare(b[0])).forEach(([author, { text }]) => {
+      const item = _div('admin-note-item');
+      item.innerHTML = `
+        <div class="admin-note-author">From: ${_esc(author)}</div>
+        <div class="admin-note-text">${_esc(text)}</div>
+      `;
+      wrap.appendChild(item);
+    });
+
+    return wrap;
+  }
+
+  /* ── Tab: Export / Print ─────────────────────────────────────── */
+
+  function _adminTabExport() {
+    const sec = _div('admin-section');
+    sec.innerHTML = `
+      <h2>Export &amp; Print</h2>
+      <p class="hint">
+        Generate a printable notes card for each student. A superlatives placeholder is
+        included — populate it once that feature is built. Use your browser's
+        print dialog to save as PDF.
+      </p>
+    `;
+
+    const sel = _el('select', { class: 'input', style: 'max-width:300px' });
+    sel.appendChild(_opt('', 'Select a student…', true));
+    [...state.students].sort().forEach(s => sel.appendChild(_opt(s, s)));
+
+    const preview = _div('export-preview');
+    preview.innerHTML = '<p class="hint" style="text-align:center;padding:28px 0">Select a student above to preview their card.</p>';
+
+    sel.addEventListener('change', () => {
+      preview.innerHTML = '';
+      if (sel.value) preview.appendChild(_buildPrintCard(sel.value));
+    });
+
+    const printOneBtn = _el('button', { class: 'btn btn-primary' });
+    printOneBtn.innerHTML = '🖨&nbsp; Print Selected Student';
+    printOneBtn.addEventListener('click', () => {
+      if (!sel.value) { showToast('Select a student first.', 'error'); return; }
+      _openPrintWindow([sel.value]);
+    });
+
+    const printAllBtn = _el('button', { class: 'btn btn-ghost' });
+    printAllBtn.textContent = 'Print All Students';
+    printAllBtn.addEventListener('click', () => {
+      if (!state.students.length) { showToast('No students in list.', 'error'); return; }
+      _openPrintWindow([...state.students].sort());
+    });
+
+    const btnRow = _div('btn-row');
+    btnRow.append(printOneBtn, printAllBtn);
+
+    sec.append(sel, btnRow, preview);
+    return sec;
+  }
+
+  function _buildPrintCard(studentName) {
+    const card = _div('print-card');
+
+    // Collect most-recent note per author
+    const byAuthor = {};
+    state.csvRows
+      .filter(r => r['Subject'] === studentName && (r['Note'] || '').trim())
+      .forEach(row => {
+        const a = row['Author'];
+        if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
+          byAuthor[a] = { text: row['Note'], ts: row['Timestamp'] };
+        }
+      });
+
+    const entries = Object.entries(byAuthor).sort((a, b) => a[0].localeCompare(b[0]));
+
+    card.innerHTML = `<h1>💛 Kind Notes for ${_esc(studentName)}</h1>`;
+
+    if (!entries.length) {
+      card.innerHTML += `<p style="color:#78716c;font-style:italic">No notes yet.</p>`;
+    } else {
+      entries.forEach(([, { text }]) => {
+        const note = _div('print-note');
+        note.innerHTML = `
+          <div class="note-author">From a classmate:</div>
+          <div class="note-text">${_esc(text)}</div>
+        `;
+        card.appendChild(note);
+      });
+    }
+
+    /* ── SUPERLATIVES PLACEHOLDER ───────────────────────────────
+       When you build the Superlatives feature:
+         1. Create a separate Google Form for superlative entry
+            (one submitter enters all superlatives except their own)
+         2. Publish that Sheet tab as a second CSV
+         3. Fetch it in the admin section, look up studentName here
+         4. Replace this placeholder div with the actual award text
+       ────────────────────────────────────────────────────────── */
+    const suprEl = document.createElement('div');
+    suprEl.style.cssText = 'margin-top:20px;padding:12px;border:2px dashed #e7e5e4;border-radius:8px;color:#78716c;font-style:italic;font-size:.875rem;';
+    suprEl.textContent   = '[Superlative award: — not yet added —]';
+    card.appendChild(suprEl);
+
+    return card;
+  }
+
+  function _openPrintWindow(studentList) {
+    const win = window.open('', '_blank');
+    if (!win) { showToast('Pop-up blocked — allow pop-ups for this site.', 'error'); return; }
+
+    const cardsHTML = studentList
+      .map(name => _buildPrintCard(name).outerHTML)
+      .join('<div style="page-break-after:always;height:0;margin:0"></div>');
+
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>Kind Notes — Print</title>
+      <style>
+        body { font-family: Georgia, serif; padding: 40px; max-width: 640px; margin: 0 auto; color: #292524; }
+        h1   { color: #92400e; border-bottom: 2px solid #fef3c7; padding-bottom: 10px; margin-bottom: 18px; font-size: 1.4rem; }
+        .print-note  { padding: 10px 14px; border-left: 4px solid #fef3c7; margin: 12px 0; }
+        .note-author { font-size: .75rem; color: #78716c; margin-bottom: 4px; font-family: sans-serif; }
+        .note-text   { font-size: .9rem; line-height: 1.7; }
+        @media print { @page { margin: 20mm; } }
+      </style>
+    </head><body>
+      ${cardsHTML}
+      <script>window.onload = () => window.print();<\/script>
+    </body></html>`);
+    win.document.close();
+  }
+
+  /* Small "refresh data" button used in tracker tab */
+  function _refreshBtn() {
+    const btn = _el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-bottom:12px' });
+    btn.textContent = '↻ Refresh data from Sheet';
+    btn.addEventListener('click', () => {
+      btn.disabled = true; btn.textContent = 'Refreshing…';
+      fetchCSV()
+        .then(rows => { state.csvRows = rows; render(); showToast('Data refreshed.', 'success'); })
+        .catch(() => showToast('Refresh failed — check CSV_URL.', 'error'))
+        .finally(() => { btn.disabled = false; });
+    });
+    return btn;
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 12 — DOM HELPERS
+   * ════════════════════════════════════════════════════════════════ */
+
+  function _div(cls) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    return d;
+  }
+
+  function _el(tag, attrs) {
+    const e = document.createElement(tag);
+    if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+      k === 'class' ? (e.className = v) : e.setAttribute(k, v);
+    });
+    return e;
+  }
+
+  function _opt(value, text, selected = false) {
+    const o = document.createElement('option');
+    o.value = value; o.textContent = text; o.selected = selected;
+    return o;
+  }
+
+  function _label(forId, text) {
+    const l = document.createElement('label');
+    l.setAttribute('for', forId);
+    l.textContent = text;
+    return l;
+  }
+
+  /* Escape HTML special chars — always use this when injecting
+     user-supplied text into innerHTML to prevent XSS            */
+  function _esc(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * SECTION 13 — TOAST NOTIFICATIONS
+   * ════════════════════════════════════════════════════════════════ */
+
+  function showToast(msg, type = 'info', duration = 3200) {
+    const t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.className   = `toast toast--${type} toast--show`;
+    clearTimeout(t._t);
+    t._t = setTimeout(() => { t.className = 'toast'; }, duration);
+  }
+
+
+  /* ════════════════════════════════════════════════════════════════
+   * BOOT — kick off the render cycle
+   * ════════════════════════════════════════════════════════════════ */
+
+  render();
+
+  </script>
+</body>
+</html>
