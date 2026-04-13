@@ -738,20 +738,20 @@
   }
 
   async function _submitOne(subject, noteText) {
-    const payload = new URLSearchParams({
-      [CONFIG.FIELDS.author]:  state.user,
-      [CONFIG.FIELDS.pin]:     state.pin,
-      [CONFIG.FIELDS.subject]: subject,
-      [CONFIG.FIELDS.note]:    noteText,
-    });
+    // Use FormData (not URLSearchParams) and no explicit Content-Type header —
+    // the browser sets multipart/form-data automatically, which Google Forms
+    // accepts reliably in no-cors mode. Setting Content-Type manually can
+    // interfere with the boundary string and break the submission silently.
+    const formData = new FormData();
+    formData.append(CONFIG.FIELDS.author,  state.user);
+    formData.append(CONFIG.FIELDS.pin,     state.pin);
+    formData.append(CONFIG.FIELDS.subject, subject);
+    formData.append(CONFIG.FIELDS.note,    noteText);
 
-    // mode:'no-cors' lets us POST cross-origin without CORS headers.
-    // The response is opaque (unreadable), but the submission lands.
     await fetch(CONFIG.FORM_URL, {
-      method:  'POST',
-      mode:    'no-cors',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    payload.toString(),
+      method: 'POST',
+      mode:   'no-cors',   // response is opaque but POST goes through
+      body:   formData,
     });
   }
 
