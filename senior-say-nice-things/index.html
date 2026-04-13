@@ -512,9 +512,6 @@
   <!-- All views render into this container -->
   <div id="app"></div>
 
-  <!-- Silent form submissions target this hidden iframe -->
-  <iframe id="submit-frame" name="submit-frame" style="display:none" title="form target"></iframe>
-
   <!-- Toast notification -->
   <div id="toast" class="toast" role="alert" aria-live="polite"></div>
 
@@ -727,6 +724,11 @@
    * SECTION 5 — SAVING
    * Each note is a separate silent POST to the Google Form.
    * Only notes changed since the last save are submitted.
+   *
+   * Uses fetch() with mode:'no-cors' — more reliable than the
+   * hidden iframe approach. With no-cors we can't read the response
+   * body (Google returns an opaque response), but the POST goes
+   * through and data lands in the Sheet.
    * ════════════════════════════════════════════════════════════════ */
 
   function _getDirtyNotes() {
@@ -735,41 +737,21 @@
       .map(([subject, n]) => ({ subject, text: n.text }));
   }
 
-  function _submitOne(subject, noteText) {
-    return new Promise(resolve => {
-      const iframe = document.getElementById('submit-frame');
-      const form   = document.createElement('form');
-      form.method  = 'POST';
-      form.action  = CONFIG.FORM_URL;
-      form.target  = 'submit-frame';
+  async function _submitOne(subject, noteText) {
+    const payload = new URLSearchParams({
+      [CONFIG.FIELDS.author]:  state.user,
+      [CONFIG.FIELDS.pin]:     state.pin,
+      [CONFIG.FIELDS.subject]: subject,
+      [CONFIG.FIELDS.note]:    noteText,
+    });
 
-      const payload = {
-        [CONFIG.FIELDS.author]:  state.user,
-        [CONFIG.FIELDS.pin]:     state.pin,
-        [CONFIG.FIELDS.subject]: subject,
-        [CONFIG.FIELDS.note]:    noteText,
-      };
-      Object.entries(payload).forEach(([name, value]) => {
-        const inp = document.createElement('input');
-        inp.type  = 'hidden';
-        inp.name  = name;
-        inp.value = value;
-        form.appendChild(inp);
-      });
-
-      document.body.appendChild(form);
-
-      const cleanup = () => {
-        iframe.removeEventListener('load', onLoad);
-        if (form.parentNode) document.body.removeChild(form);
-        resolve();
-      };
-      const onLoad = () => cleanup();
-      iframe.addEventListener('load', onLoad);
-      form.submit();
-
-      // Safety: resolve after 8s even if iframe never fires
-      setTimeout(cleanup, 8000);
+    // mode:'no-cors' lets us POST cross-origin without CORS headers.
+    // The response is opaque (unreadable), but the submission lands.
+    await fetch(CONFIG.FORM_URL, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    payload.toString(),
     });
   }
 
