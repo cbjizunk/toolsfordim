@@ -600,19 +600,32 @@
 
   async function fetchCSV() {
     if (!CONFIG.CSV_URL || CONFIG.CSV_URL.startsWith('PASTE')) {
-      return [];  // not configured yet — demo mode
+      console.log('[KindNotes] CSV_URL not configured — demo mode');
+      return [];
     }
     const sep  = CONFIG.CSV_URL.includes('?') ? '&' : '?';
     const url  = CONFIG.CSV_URL + sep + '_cb=' + Date.now();
+    console.log('[KindNotes] Fetching CSV:', url);
     const resp = await fetch(url);
+    console.log('[KindNotes] CSV response status:', resp.status, resp.statusText);
     if (!resp.ok) throw new Error('CSV fetch failed (' + resp.status + ')');
-    return _parseCSV(await resp.text());
+    const text = await resp.text();
+    console.log('[KindNotes] CSV raw (first 300 chars):', text.slice(0, 300));
+    const rows = _parseCSV(text);
+    console.log('[KindNotes] CSV parsed rows:', rows.length);
+    if (rows.length > 0) {
+      console.log('[KindNotes] CSV column names:', Object.keys(rows[0]));
+      console.log('[KindNotes] CSV first row:', rows[0]);
+    }
+    return rows;
   }
 
   function _parseCSV(text) {
-    const lines   = text.replace(/\r/g, '').split('\n');
-    let headers   = null;
-    const rows    = [];
+    // Strip BOM character — Google Sheets sometimes prepends \ufeff
+    const clean  = text.replace(/^\ufeff/, '').replace(/\r/g, '');
+    const lines  = clean.split('\n');
+    let headers  = null;
+    const rows   = [];
     for (const line of lines) {
       if (!line.trim()) continue;
       const fields = _splitCSVLine(line);
@@ -657,13 +670,32 @@
       state.csvRows = csvRows;
 
       // Rows where this student was the Author
-      const myRows  = csvRows.filter(r => r['Author'] === userName);
-      const isNew   = myRows.length === 0;
+      const myRows  = csvRows.filter(r => r['Author Name'] === userName);
 
-      // PIN check: use the oldest-recorded PIN as canonical.
-      // (If a student forgets their PIN, delete their rows in the Sheet
-      //  to let them reset.)
-      if (!isNew) {
+      // ── PIN verification ─────────────────────────────────────────
+      // Priority 1: localStorage — instant, not affected by Google
+      //   Sheets CSV caching (which can be 5+ minutes stale).
+      //   Written on every successful login, so it stays current.
+      // Priority 2: CSV rows — used when localStorage has no entry
+      //   (e.g. first time on a new device).
+      // Priority 3: No prior record found anywhere → new user,
+      //   accept any 4-digit PIN and store it.
+      const localPinKey  = `kindnotes_pin_${userName}`;
+      const cachedPin    = localStorage.getItem(localPinKey);
+      const csvRows_for_pin = myRows.length > 0 ? myRows : null;
+
+      let isNew = false;
+
+      if (cachedPin) {
+        // Returning user on this device — verify against localStorage
+        if (cachedPin !== pinInput) {
+          state.loading = false;
+          render();
+          showToast('Incorrect PIN. Try again.', 'error');
+          return;
+        }
+      } else if (csvRows_for_pin) {
+        // Returning user on a new device — verify against oldest CSV row
         const oldest = [...myRows].sort(
           (a, b) => new Date(a['Timestamp']) - new Date(b['Timestamp'])
         )[0];
@@ -673,15 +705,23 @@
           showToast('Incorrect PIN. Try again.', 'error');
           return;
         }
+      } else {
+        // No record anywhere — this is a new user
+        isNew = true;
       }
+
+      // Store / refresh PIN in localStorage so future logins on this
+      // device are instant and don't depend on CSV freshness.
+      try { localStorage.setItem(localPinKey, pinInput); } catch(e) {}
+
 
       // For each subject, take the most-recent note the student has written
       const latestBySubject = {};
       myRows.forEach(row => {
-        const subj = row['Subject'];
+        const subj = row['Subject Name'];
         const ex   = latestBySubject[subj];
         if (!ex || new Date(row['Timestamp']) > new Date(ex.ts)) {
-          latestBySubject[subj] = { text: row['Note'] || '', ts: row['Timestamp'] };
+          latestBySubject[subj] = { text: row['Note Text'] || '', ts: row['Timestamp'] };
         }
       });
 
@@ -1257,11 +1297,11 @@
     // Collect most-recent note per author for this target
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject'] === target && (r['Note'] || '').trim())
+      .filter(r => r['Subject Name'] === target && (r['Note Text'] || '').trim())
       .forEach(row => {
-        const a = row['Author'];
+        const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
-          byAuthor[a] = { text: row['Note'], ts: row['Timestamp'] };
+          byAuthor[a] = { text: row['Note Text'], ts: row['Timestamp'] };
         }
       });
 
@@ -1341,11 +1381,11 @@
     // Collect most-recent note per author
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject'] === studentName && (r['Note'] || '').trim())
+      .filter(r => r['Subject Name'] === studentName && (r['Note Text'] || '').trim())
       .forEach(row => {
-        const a = row['Author'];
+        const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
-          byAuthor[a] = { text: row['Note'], ts: row['Timestamp'] };
+          byAuthor[a] = { text: row['Note Text'], ts: row['Timestamp'] };
         }
       });
 
