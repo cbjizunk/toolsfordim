@@ -1225,7 +1225,9 @@
     const written = {};
     state.students.forEach(s => { written[s] = new Set(); });
     state.csvRows.forEach(row => {
-      const { Author: author, Subject: subject, Note: note } = row;
+      const author  = row['Author Name'];
+      const subject = row['Subject Name'];
+      const note    = row['Note Text'];
       if (author && subject && (note || '').trim() && written[author]) {
         written[author].add(subject);
       }
