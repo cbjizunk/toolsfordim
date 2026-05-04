@@ -538,10 +538,19 @@
       note:    'entry.1760620660',  // Note Text
     },
 
-    /* Admin panel password ───────────────────────────────────────
-       Change this. It lives in your HTML (visible to anyone who
-       views source), which is fine — admin is just for you.       */
-    ADMIN_PASSWORD: 'kindnotes2025',
+    /* Admin panel password hash ──────────────────────────────────
+       This is a SHA-256 hash of your password — not the password
+       itself. It cannot be reversed. To generate a new hash:
+         1. Open browser DevTools console
+         2. Paste and run:
+              const h = async p => [...new Uint8Array(
+                await crypto.subtle.digest('SHA-256',
+                new TextEncoder().encode(p)))]
+                .map(b=>b.toString(16).padStart(2,'0')).join('');
+              h('yournewpassword').then(console.log);
+         3. Copy the output hex string here.
+       Current password is stored separately — do not put it here.  */
+    ADMIN_PASSWORD_HASH: 'a884fa6a1b010897b1a35e4a6973ea334361068ec3d5c5b9a82e0137365f5275',
 
     /* Displayed in the login header ─────────────────────────────  */
     CLASS_NAME: 'Music Tech — 2025–26',
@@ -1100,8 +1109,11 @@
     btn.textContent = state.loading ? 'Loading…' : 'Enter';
     btn.disabled    = state.loading;
 
-    btn.addEventListener('click', () => {
-      if (inp.value !== CONFIG.ADMIN_PASSWORD) { showToast('Incorrect password.', 'error'); return; }
+    btn.addEventListener('click', async () => {
+      // Hash the entered password and compare against stored hash.
+      // The stored value is a SHA-256 digest — it cannot be reversed.
+      const enteredHash = await _sha256(inp.value);
+      if (enteredHash !== CONFIG.ADMIN_PASSWORD_HASH) { showToast('Incorrect password.', 'error'); return; }
       state.loading = true; render();
       fetchCSV()
         .then(rows => { state.csvRows = rows; })
@@ -1550,6 +1562,13 @@
   }
 
   function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Hash a string with SHA-256, return lowercase hex.
+  // Uses the browser's built-in Web Crypto API — no libraries needed.
+  async function _sha256(str) {
+    const buf    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
 
 
   /* ════════════════════════════════════════════════════════════════
