@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kind Notes</title>
+  <title>Senior Say-Nice-Things Notes</title>
   <!--
     KIND NOTES — Single-file web app
     ════════════════════════════════════════════════════════════
@@ -757,7 +757,7 @@
       render();
 
       if (isNew) {
-        showToast('Welcome! Your PIN has been set. Start writing kind notes! 💛', 'success', 5000);
+        showToast('Welcome! Your PIN has been set. Start writing notes of appreciation! 💛', 'success', 5000);
       } else {
         const n = Object.values(notes).filter(n => n.text.trim()).length;
         showToast(`Welcome back! You've written about ${n} classmate${n !== 1 ? 's' : ''} so far.`, 'success', 4000);
@@ -898,7 +898,7 @@
     const hdr = _div('login-header');
     hdr.innerHTML = `
       <div class="login-emoji">💛</div>
-      <h1 class="login-title">Kind Notes</h1>
+      <h1 class="login-title">Senior Say-Nice-Things-To-Each-Other Form Notes</h1>
       <p class="login-subtitle">${_esc(CONFIG.CLASS_NAME)}</p>
     `;
 
@@ -954,7 +954,7 @@
     /* Top bar */
     const topbar = _div('topbar');
     const tLeft  = _div('topbar-left');
-    tLeft.innerHTML = '<span style="font-size:1.1rem">💛</span><strong>Kind Notes</strong>';
+    tLeft.innerHTML = '<span style="font-size:1.1rem">💛</span><strong>Notes of Appreciation</strong>';
     const tRight = _div('topbar-right');
     const uSpan  = _el('span', { class: 'topbar-user' });
     uSpan.textContent = `Hi, ${state.user}!`;
@@ -1130,7 +1130,7 @@
     /* Header */
     const hdr = _div('admin-header');
     const ttl = document.createElement('span');
-    ttl.textContent = '🔑 Kind Notes — Admin';
+    ttl.textContent = '🔑 Senior SayNiceThings Notes — Admin';
     const exitBtn = _el('button', { class: 'btn btn-ghost btn-sm' });
     exitBtn.textContent = 'Exit admin';
     exitBtn.addEventListener('click', () => { state.view = 'login'; render(); });
@@ -1405,7 +1405,7 @@
 
     const entries = Object.entries(byAuthor).sort((a, b) => a[0].localeCompare(b[0]));
 
-    card.innerHTML = `<h1>💛 Kind Notes for ${_esc(studentName)}</h1>`;
+    card.innerHTML = `<h1>💛 Notes of appreciation for  ${_esc(studentName)}, from the DIM senior class.</h1>`;
 
     if (!entries.length) {
       card.innerHTML += `<p style="color:#78716c;font-style:italic">No notes yet.</p>`;
@@ -1446,7 +1446,7 @@
 
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="UTF-8">
-      <title>Kind Notes — Print</title>
+      <title>Senior SayNiceThings Notes — Print</title>
       <style>
         body {
           font-family: Georgia, serif;
