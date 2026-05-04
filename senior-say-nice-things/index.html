@@ -1410,14 +1410,14 @@
     if (!entries.length) {
       card.innerHTML += `<p style="color:#78716c;font-style:italic">No notes yet.</p>`;
     } else {
+      // Bullet list — tight spacing, no per-note author label
+      const ul = document.createElement('ul');
       entries.forEach(([, { text }]) => {
-        const note = _div('print-note');
-        note.innerHTML = `
-          <div class="note-author">From a classmate:</div>
-          <div class="note-text">${_esc(text)}</div>
-        `;
-        card.appendChild(note);
+        const li = document.createElement('li');
+        li.textContent = text;
+        ul.appendChild(li);
       });
+      card.appendChild(ul);
     }
 
     /* ── SUPERLATIVES PLACEHOLDER ───────────────────────────────
@@ -1429,8 +1429,8 @@
          4. Replace this placeholder div with the actual award text
        ────────────────────────────────────────────────────────── */
     const suprEl = document.createElement('div');
-    suprEl.style.cssText = 'margin-top:20px;padding:12px;border:2px dashed #e7e5e4;border-radius:8px;color:#78716c;font-style:italic;font-size:.875rem;';
-    suprEl.textContent   = '[Superlative award: — not yet added —]';
+    suprEl.className   = 'superlative';
+    suprEl.textContent = '[Superlative award: — not yet added —]';
     card.appendChild(suprEl);
 
     return card;
@@ -1448,12 +1448,45 @@
       <meta charset="UTF-8">
       <title>Kind Notes — Print</title>
       <style>
-        body { font-family: Georgia, serif; padding: 40px; max-width: 640px; margin: 0 auto; color: #292524; }
-        h1   { color: #92400e; border-bottom: 2px solid #fef3c7; padding-bottom: 10px; margin-bottom: 18px; font-size: 1.4rem; }
-        .print-note  { padding: 10px 14px; border-left: 4px solid #fef3c7; margin: 12px 0; }
-        .note-author { font-size: .75rem; color: #78716c; margin-bottom: 4px; font-family: sans-serif; }
-        .note-text   { font-size: .9rem; line-height: 1.7; }
-        @media print { @page { margin: 20mm; } }
+        body {
+          font-family: Georgia, serif;
+          padding: 0;
+          margin: 0;
+          color: #292524;
+        }
+        .print-card {
+          padding: 14px 24px 10px;
+        }
+        h1 {
+          color: #92400e;
+          border-bottom: 2px solid #fef3c7;
+          padding-bottom: 6px;
+          margin: 0 0 10px 0;
+          font-size: 1.25rem;
+        }
+        ul {
+          margin: 0;
+          padding-left: 18px;
+        }
+        li {
+          line-height: 1.35;
+          margin-bottom: 5px;
+          font-size: .88rem;
+        }
+        li:last-child { margin-bottom: 0; }
+        .superlative {
+          margin-top: 12px;
+          padding: 7px 10px;
+          border: 1.5px dashed #e7e5e4;
+          border-radius: 6px;
+          color: #78716c;
+          font-style: italic;
+          font-size: .8rem;
+        }
+        @media print {
+          @page { margin: 8mm 12mm; }
+          .print-card { padding: 0; }
+        }
       </style>
     </head><body>
       ${cardsHTML}
