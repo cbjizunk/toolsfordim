@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      21,
-    timestamp:   'May 13 2026 1:20pm ET',
-    description: 'Print: lower pageH to 1020, break-before:avoid on superlative',
+    number:      22,
+    timestamp:   'May 13 2026 1:30pm ET',
+    description: 'Fix sentinel: two-pass filter so cleared notes properly supersede old ones',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -1460,24 +1460,28 @@
     const data = {};
     state.students.forEach(s => { data[s] = { written: new Set(), notes: {} }; });
 
-    // For each author/subject pair, keep only the most recent note
+    // For each author/subject pair, find the most recent row — including
+    // sentinel rows so they properly supersede older real notes.
     const latestByPair = {};
     state.csvRows.forEach(row => {
       const author  = row['Author Name'];
       const subject = row['Subject Name'];
       const note    = (row['Note Text'] || '').trim();
       const ts      = row['Timestamp'];
-      if (!author || !subject || !note || note === SENTINEL || !data[author]) return;
+      if (!author || !subject || !note || !data[author]) return;
       const key = `${author}||${subject}`;
       if (!latestByPair[key] || new Date(ts) > new Date(latestByPair[key].ts)) {
         latestByPair[key] = { note, ts };
       }
     });
 
-    // Populate data sets from deduplicated pairs
+    // Populate data sets — skip pairs where the most recent note is
+    // a sentinel (cleared) or empty. This correctly handles the case
+    // where a student cleared a note: the sentinel is the latest row
+    // and overrides the older real note.
     Object.entries(latestByPair).forEach(([key, { note }]) => {
       const [author, subject] = key.split('||');
-      if (data[author]) {
+      if (data[author] && note && note !== SENTINEL) {
         data[author].written.add(subject);
         data[author].notes[subject] = note;
       }
@@ -1626,16 +1630,21 @@
   function _buildStudentNoteList(target) {
     const wrap = _div('admin-notes-results');
 
-    // Collect most-recent note per author for this target
+    // Collect most-recent note per author — include sentinel rows so they
+    // supersede older real notes, then remove sentinel entries after.
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject Name'] === target && (r['Note Text'] || '').trim() && r['Note Text'] !== SENTINEL)
+      .filter(r => r['Subject Name'] === target && (r['Note Text'] || '').trim())
       .forEach(row => {
         const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
           byAuthor[a] = { text: row['Note Text'], ts: row['Timestamp'] };
         }
       });
+    // Remove entries where the latest note is a sentinel (cleared)
+    Object.keys(byAuthor).forEach(a => {
+      if (byAuthor[a].text === SENTINEL) delete byAuthor[a];
+    });
 
     const entries = Object.entries(byAuthor);
     if (!entries.length) {
@@ -1866,16 +1875,21 @@
   function _buildPrintCard(studentName) {
     const card = _div('print-card');
 
-    // Collect most-recent note per author
+    // Collect most-recent note per author — include sentinel rows so they
+    // supersede older real notes, then remove sentinel entries after.
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject Name'] === studentName && (r['Note Text'] || '').trim() && r['Note Text'] !== SENTINEL)
+      .filter(r => r['Subject Name'] === studentName && (r['Note Text'] || '').trim())
       .forEach(row => {
         const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
           byAuthor[a] = { text: row['Note Text'], ts: row['Timestamp'] };
         }
       });
+    // Remove entries where the latest note is a sentinel (cleared)
+    Object.keys(byAuthor).forEach(a => {
+      if (byAuthor[a].text === SENTINEL) delete byAuthor[a];
+    });
 
     const entries = Object.entries(byAuthor).sort((a, b) => a[0].localeCompare(b[0]));
 
