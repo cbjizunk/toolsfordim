@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      22,
-    timestamp:   'May 13 2026 1:30pm ET',
-    description: 'Fix sentinel: two-pass filter so cleared notes properly supersede old ones',
+    number:      23,
+    timestamp:   'May 13 2026 1:45pm ET',
+    description: 'Print zoom: 8% measurement buffer for screen-vs-print rendering gap',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -2033,7 +2033,13 @@
             requestAnimationFrame(function() {
               requestAnimationFrame(function() {
                 document.querySelectorAll('.print-card').forEach(function(card) {
-                  var cardH = card.scrollHeight;
+                  // Apply an 8% buffer to the measured height. The browser
+                // renders text slightly differently at print time (different
+                // font hinting, subpixel rounding), making print content
+                // consistently a bit taller than our on-screen measurement.
+                // The buffer makes zoom trigger earlier and shrink a bit more
+                // to cover that gap without affecting cards that fit easily.
+                var cardH = card.scrollHeight * 1.08;
                   if (cardH > pageH) {
                     card.style.zoom = String(pageH / cardH);
                   }
