@@ -1801,7 +1801,7 @@
     if (!win) { showToast('Pop-up blocked — allow pop-ups for this site.', 'error'); return; }
 
     const cardsHTML = studentList
-      .map(name => `<div class="print-card" data-card>${_buildPrintCard(name).innerHTML}</div>`)
+      .map(name => `<div class="page-wrap"><div class="print-card">${_buildPrintCard(name).innerHTML}</div></div>`)
       .join('');
 
     win.document.write(`<!DOCTYPE html><html><head>
@@ -1815,18 +1815,20 @@
         }
 
         /*
-         * Each card is sized to exactly one printed page.
-         * The auto-shrink script below applies a CSS scale()
-         * transform to cards that overflow, shrinking them
-         * uniformly until they fit. Cards that already fit
-         * are not touched.
+         * .page-wrap is the fixed-size page container.
+         * .print-card is the content inside it, scaled down
+         * by JS if it overflows. No overflow:hidden anywhere
+         * so content is never clipped.
          */
+        .page-wrap {
+          width: 100%;
+          page-break-after: always;
+          break-after: page;
+          position: relative;
+        }
         .print-card {
           width: 100%;
           padding: 14px 20px 10px;
-          page-break-after: always;
-          break-after: page;
-          overflow: hidden;
           transform-origin: top left;
         }
         h1 {
@@ -1877,36 +1879,29 @@
       ${cardsHTML}
       <script>
         window.onload = function() {
-          // Auto-shrink cards that overflow a single page.
-          //
-          // Strategy: measure the usable page height (accounting for
-          // @page margins of 8mm top+bottom = ~45px at 96dpi, though
-          // the browser's innerHeight is a reasonable proxy before
-          // print). We shrink via CSS scale() transform so the aspect
-          // ratio and layout are preserved exactly.
-          //
-          // We wait a tick for fonts/layout to settle before measuring.
-          requestAnimationFrame(function() {
-            // Page height available for content. We use A4 height minus
-            // our @page margins (8mm top + 8mm bottom ≈ 61px at 96dpi).
-            // Using 96% of window height is a safe cross-browser proxy.
-            const pageH = window.innerHeight * 0.96;
+          // Allow layout to fully settle (fonts, images, etc.)
+          setTimeout(function() {
+            // Usable page height: 88% of window height accounts for
+            // @page margins and browser print chrome.
+            var pageH = window.innerHeight * 0.88;
 
-            document.querySelectorAll('[data-card]').forEach(function(card) {
-              const cardH = card.scrollHeight;
+            document.querySelectorAll('.print-card').forEach(function(card) {
+              var cardH = card.scrollHeight;
               if (cardH > pageH) {
-                const scale = pageH / cardH;
+                var scale = pageH / cardH;
+                // Scale the card content down
                 card.style.transform = 'scale(' + scale + ')';
-                // Compensate height so the next card starts at the
-                // right position (scaled card still occupies its
-                // original space in the layout otherwise).
-                card.style.height = (cardH * scale) + 'px';
+                card.style.transformOrigin = 'top left';
+                // Shrink the wrapper to match the scaled height so
+                // the next card starts in the right place
+                var wrap = card.parentElement;
+                if (wrap) wrap.style.height = (cardH * scale) + 'px';
               }
             });
 
-            // Small delay to let scale reflow settle before print dialog
-            setTimeout(function() { window.print(); }, 120);
-          });
+            // Let the scale reflow settle before opening print dialog
+            setTimeout(function() { window.print(); }, 150);
+          }, 200);
         };
       <\/script>
     </body></html>`);
