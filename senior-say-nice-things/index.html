@@ -1,3 +1,4 @@
+<!-- kind-notes v2025-05-13 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1229,10 +1230,18 @@
     const hdr = _div('admin-header');
     const ttl = document.createElement('span');
     ttl.textContent = '🔑 Senior SayNiceThings Notes — Admin';
+
+    const verSpan = document.createElement('span');
+    verSpan.style.cssText = 'font-size:.75rem;font-weight:400;color:var(--text-muted);margin-left:14px;';
+    verSpan.textContent = 'v11 · May 13 2025 · Auto-shrink print fix, summaries tab, expandable tracker';
+    const titleWrap = document.createElement('span');
+    titleWrap.style.cssText = 'display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;';
+    titleWrap.append(ttl, verSpan);
+
     const exitBtn = _el('button', { class: 'btn btn-ghost btn-sm' });
     exitBtn.textContent = 'Exit admin';
     exitBtn.addEventListener('click', () => { state.view = 'login'; render(); });
-    hdr.append(ttl, exitBtn);
+    hdr.append(titleWrap, exitBtn);
 
     /* Tab bar */
     const tabBar = _div('admin-tabs');
@@ -1823,7 +1832,6 @@
         .page-wrap {
           page-break-after: always;
           break-after: page;
-          overflow: hidden;   /* clips only what escaped after scaling */
           position: relative;
         }
         .print-card {
@@ -1880,26 +1888,21 @@
       <script>
         window.onload = function() {
           setTimeout(function() {
-            // Usable page height: 88% of window height accounts for
-            // @page margins and browser print chrome.
             var pageH = window.innerHeight * 0.88;
 
             document.querySelectorAll('.page-wrap').forEach(function(wrap) {
-              // Fix the wrapper to exactly one page height so the
-              // next card always starts at the right position.
-              wrap.style.height = pageH + 'px';
-
               var card = wrap.querySelector('.print-card');
               if (!card) return;
 
               var cardH = card.scrollHeight;
               if (cardH > pageH) {
-                // Scale the card content down to fit within the wrapper.
-                // Because .page-wrap has overflow:hidden, any rounding
-                // remainder is cleanly clipped without affecting the
-                // next page.
+                // Only apply fixed height + overflow:hidden to cards
+                // that actually overflow — cards that fit are left
+                // completely unconstrained so nothing gets clipped.
                 var scale = pageH / cardH;
                 card.style.transform = 'scale(' + scale + ')';
+                wrap.style.height = pageH + 'px';
+                wrap.style.overflow = 'hidden';
               }
             });
 
