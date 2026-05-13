@@ -1,4 +1,4 @@
-<!-- kind-notes v2025-05-13 -->
+<!-- kind-notes version info is set in APP_VERSION below -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -572,6 +572,16 @@
 
   <script>
   /* ════════════════════════════════════════════════════════════════
+   * VERSION — update these three fields on every push.
+   * All version displays in the UI read from here.
+   * ════════════════════════════════════════════════════════════════ */
+  const APP_VERSION = {
+    number:      14,
+    timestamp:   'May 13 2025 4:30pm',
+    description: 'Print scaling: switched to zoom property, no overflow clipping',
+  };
+
+  /* ════════════════════════════════════════════════════════════════
    * SECTION 1 — CONFIGURATION
    * Fill everything in here before deploying.
    * ════════════════════════════════════════════════════════════════ */
@@ -1035,7 +1045,11 @@
       e.preventDefault(); state.view = 'admin-login'; render();
     });
 
-    wrap.append(hdr, card, adminLnk);
+    const verLnk = _div('admin-link');
+    verLnk.style.cssText = 'margin-top:4px;font-size:.7rem;';
+    verLnk.textContent = `v${APP_VERSION.number} · ${APP_VERSION.timestamp}`;
+
+    wrap.append(hdr, card, adminLnk, verLnk);
     return wrap;
   }
 
@@ -1233,7 +1247,7 @@
 
     const verSpan = document.createElement('span');
     verSpan.style.cssText = 'font-size:.75rem;font-weight:400;color:var(--text-muted);margin-left:14px;';
-    verSpan.textContent = 'v11 · May 13 2025 · Auto-shrink print fix, summaries tab, expandable tracker';
+    verSpan.textContent = `v${APP_VERSION.number} · ${APP_VERSION.timestamp} · ${APP_VERSION.description}`;
     const titleWrap = document.createElement('span');
     titleWrap.style.cssText = 'display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;';
     titleWrap.append(ttl, verSpan);
@@ -1822,22 +1836,20 @@
           font-family: Georgia, serif;
           color: #292524;
         }
-
         /*
-         * .page-wrap is set to a fixed pixel height by JS (= usable
-         * page height). overflow:hidden on the wrap — not the card —
-         * so the card itself is never clipped before scaling.
-         * .print-card scales down via transform if content overflows.
+         * zoom (unlike transform:scale) changes actual layout
+         * dimensions — the browser's page-break calculation sees
+         * the shrunk size, so the award/superlative stays on the
+         * same page as the rest of the content.
+         * No overflow:hidden anywhere — nothing gets clipped.
          */
         .page-wrap {
           page-break-after: always;
           break-after: page;
-          position: relative;
         }
         .print-card {
           width: 100%;
           padding: 14px 20px 10px;
-          transform-origin: top left;
         }
         h1 {
           color: #92400e;
@@ -1857,15 +1869,8 @@
           background: #fffbeb;
           font-style: italic;
         }
-        ul {
-          margin: 0;
-          padding-left: 18px;
-        }
-        li {
-          line-height: 1.35;
-          margin-bottom: 5px;
-          font-size: .88rem;
-        }
+        ul { margin: 0; padding-left: 18px; }
+        li { line-height: 1.35; margin-bottom: 5px; font-size: .88rem; }
         li:last-child { margin-bottom: 0; }
         .superlative {
           margin-top: 14px;
@@ -1888,25 +1893,23 @@
       <script>
         window.onload = function() {
           setTimeout(function() {
+            // 88% of window height approximates the usable printed
+            // page area after @page margins.
             var pageH = window.innerHeight * 0.88;
 
-            document.querySelectorAll('.page-wrap').forEach(function(wrap) {
-              var card = wrap.querySelector('.print-card');
-              if (!card) return;
-
+            document.querySelectorAll('.print-card').forEach(function(card) {
               var cardH = card.scrollHeight;
               if (cardH > pageH) {
-                // Only apply fixed height + overflow:hidden to cards
-                // that actually overflow — cards that fit are left
-                // completely unconstrained so nothing gets clipped.
-                var scale = pageH / cardH;
-                card.style.transform = 'scale(' + scale + ')';
-                wrap.style.height = pageH + 'px';
-                wrap.style.overflow = 'hidden';
+                // zoom changes actual layout dimensions (unlike
+                // transform:scale which only changes visual rendering).
+                // This means page-break logic sees the shrunk content
+                // and keeps everything — including the award — on one
+                // page. Cards that already fit are not touched.
+                card.style.zoom = String(pageH / cardH);
               }
             });
 
-            setTimeout(function() { window.print(); }, 150);
+            setTimeout(function() { window.print(); }, 200);
           }, 200);
         };
       <\/script>
