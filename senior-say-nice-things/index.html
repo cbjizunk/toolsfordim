@@ -653,6 +653,7 @@
     autoSaveTimer: null,
     students:     _loadStudentList(),  // active list (localStorage > CONFIG)
     superlatives: _loadSuperlatives(), // { studentName: awardText } — localStorage only
+    summaries:    _loadSummaries(),    // { studentName: summaryText } — localStorage only
   };
 
   // Prefer a localStorage-stored list over the hardcoded CONFIG default
@@ -679,6 +680,21 @@
   function _saveSuperlatives() {
     try {
       localStorage.setItem('kindnotes_superlatives', JSON.stringify(state.superlatives));
+    } catch (e) { /* ignore */ }
+  }
+
+  // Load/save AI summaries from localStorage: { studentName: summaryText }
+  function _loadSummaries() {
+    try {
+      const raw = localStorage.getItem('kindnotes_summaries');
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return {};
+  }
+
+  function _saveSummaries() {
+    try {
+      localStorage.setItem('kindnotes_summaries', JSON.stringify(state.summaries));
     } catch (e) { /* ignore */ }
   }
 
@@ -1225,6 +1241,7 @@
       { id: 'tracker',       label: '📊 Completion'     },
       { id: 'byStudent',     label: '📖 By Student'     },
       { id: 'superlatives',  label: '🏆 Superlatives'   },
+      { id: 'summaries',     label: '✨ Summaries'       },
       { id: 'export',        label: '🖨 Export / Print'  },
     ].forEach(({ id, label }) => {
       const tab = _el('button', {
@@ -1242,6 +1259,7 @@
       tracker:      _adminTabTracker,
       byStudent:    _adminTabByStudent,
       superlatives: _adminTabSuperlatives,
+      summaries:    _adminTabSummaries,
       export:       _adminTabExport,
     };
     content.appendChild((tabFns[state.adminTab] || _adminTabStudents)());
@@ -1601,6 +1619,83 @@
     return sec;
   }
 
+  /* ── Tab: Summaries ──────────────────────────────────────────── */
+
+  function _adminTabSummaries() {
+    const sec = _div('admin-section');
+    sec.innerHTML = `
+      <h2>AI Summaries</h2>
+      <p class="hint">
+        Paste a generated summary for each student. These appear at the top of
+        their print card, above the bullet list of notes. Stored in localStorage
+        on this device only. Students with no summary entered get no summary
+        section — nothing blank or placeholder will appear.
+      </p>
+    `;
+
+    const grid = _div('');
+    grid.style.cssText = 'display:flex;flex-direction:column;gap:16px;margin-top:4px;';
+
+    [...state.students].sort().forEach(student => {
+      const wrap = _div('');
+      wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;';
+
+      // Name label with character count indicator
+      const topRow = _div('');
+      topRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;';
+
+      const nameLbl = _div('');
+      nameLbl.style.cssText = 'font-size:.875rem;font-weight:600;color:var(--text);';
+      nameLbl.textContent = student;
+
+      const charCount = _div('');
+      charCount.style.cssText = 'font-size:.75rem;color:var(--text-muted);';
+      const existing = state.summaries[student] || '';
+      charCount.textContent = existing ? `${existing.length} chars` : '';
+
+      topRow.append(nameLbl, charCount);
+
+      const ta = _el('textarea', {
+        class: 'input',
+        rows: '3',
+        placeholder: `Paste AI summary for ${student} here…`,
+      });
+      ta.style.cssText = 'font-size:.85rem;line-height:1.5;resize:vertical;';
+      ta.value = existing;
+
+      ta.addEventListener('input', () => {
+        const val = ta.value.trim();
+        if (val) {
+          state.summaries[student] = ta.value; // preserve exact text incl. line breaks
+        } else {
+          delete state.summaries[student];
+        }
+        charCount.textContent = val ? `${val.length} chars` : '';
+        _saveSummaries();
+      });
+
+      wrap.append(topRow, ta);
+      grid.appendChild(wrap);
+    });
+
+    // Clear all button
+    const clearBtn = _el('button', { class: 'btn btn-ghost', style: 'margin-top:16px' });
+    clearBtn.textContent = '🗑 Clear all summaries';
+    clearBtn.addEventListener('click', () => {
+      if (!confirm('Clear all summaries? This cannot be undone.')) return;
+      state.summaries = {};
+      _saveSummaries();
+      render();
+      showToast('All summaries cleared.', 'info');
+    });
+
+    const btnRow = _div('btn-row');
+    btnRow.append(clearBtn);
+
+    sec.append(grid, btnRow);
+    return sec;
+  }
+
   /* ── Tab: Export / Print ─────────────────────────────────────── */
 
   function _adminTabExport() {
@@ -1665,6 +1760,15 @@
 
     card.innerHTML = `<h1>💛 Notes of appreciation for  ${_esc(studentName)}, from the DIM senior class.</h1>`;
 
+    // Summary — only rendered if one has been entered in Admin → Summaries
+    const summary = state.summaries[studentName];
+    if (summary) {
+      const summaryEl = document.createElement('p');
+      summaryEl.className = 'print-summary';
+      summaryEl.textContent = summary;
+      card.appendChild(summaryEl);
+    }
+
     if (!entries.length) {
       card.innerHTML += `<p style="color:#78716c;font-style:italic">No notes yet.</p>`;
     } else {
@@ -1719,6 +1823,17 @@
           padding-bottom: 6px;
           margin: 0 0 10px 0;
           font-size: 1.25rem;
+        }
+        .print-summary {
+          font-family: Georgia, serif;
+          font-size: .9rem;
+          line-height: 1.6;
+          color: #292524;
+          margin: 0 0 12px 0;
+          padding: 10px 12px;
+          border-left: 3px solid #fcd34d;
+          background: #fffbeb;
+          font-style: italic;
         }
         ul {
           margin: 0;
