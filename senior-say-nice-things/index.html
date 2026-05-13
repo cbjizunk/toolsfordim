@@ -1815,15 +1815,15 @@
         }
 
         /*
-         * .page-wrap is the fixed-size page container.
-         * .print-card is the content inside it, scaled down
-         * by JS if it overflows. No overflow:hidden anywhere
-         * so content is never clipped.
+         * .page-wrap is set to a fixed pixel height by JS (= usable
+         * page height). overflow:hidden on the wrap — not the card —
+         * so the card itself is never clipped before scaling.
+         * .print-card scales down via transform if content overflows.
          */
         .page-wrap {
-          width: 100%;
           page-break-after: always;
           break-after: page;
+          overflow: hidden;   /* clips only what escaped after scaling */
           position: relative;
         }
         .print-card {
@@ -1879,27 +1879,30 @@
       ${cardsHTML}
       <script>
         window.onload = function() {
-          // Allow layout to fully settle (fonts, images, etc.)
           setTimeout(function() {
             // Usable page height: 88% of window height accounts for
             // @page margins and browser print chrome.
             var pageH = window.innerHeight * 0.88;
 
-            document.querySelectorAll('.print-card').forEach(function(card) {
+            document.querySelectorAll('.page-wrap').forEach(function(wrap) {
+              // Fix the wrapper to exactly one page height so the
+              // next card always starts at the right position.
+              wrap.style.height = pageH + 'px';
+
+              var card = wrap.querySelector('.print-card');
+              if (!card) return;
+
               var cardH = card.scrollHeight;
               if (cardH > pageH) {
+                // Scale the card content down to fit within the wrapper.
+                // Because .page-wrap has overflow:hidden, any rounding
+                // remainder is cleanly clipped without affecting the
+                // next page.
                 var scale = pageH / cardH;
-                // Scale the card content down
                 card.style.transform = 'scale(' + scale + ')';
-                card.style.transformOrigin = 'top left';
-                // Shrink the wrapper to match the scaled height so
-                // the next card starts in the right place
-                var wrap = card.parentElement;
-                if (wrap) wrap.style.height = (cardH * scale) + 'px';
               }
             });
 
-            // Let the scale reflow settle before opening print dialog
             setTimeout(function() { window.print(); }, 150);
           }, 200);
         };
