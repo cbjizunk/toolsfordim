@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      18,
-    timestamp:   'May 13 2025 6:20pm',
-    description: 'Print zoom fix: measure at print column width (720px) before zooming',
+    number:      19,
+    timestamp:   'May 13 2025 6:40pm',
+    description: 'Print zoom: strip card padding before measuring to match print layout',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -1995,26 +1995,33 @@
             // (11in − 1in) × 96px/in = 960px
             var pageH = (11 - 1) * 96; // 960px
 
-            // CRITICAL: constrain body to the actual print column width
-            // before measuring scrollHeight. Without this, the popup window
-            // may be wider than the print column (7.5in = 720px at 96dpi),
-            // causing text to wrap less on screen than in print — making
-            // cards measure shorter than they actually print, so zoom never
-            // triggers even when the content overflows.
-            var colW = 7.5 * 96; // 720px — Letter minus 0.5in left+right margins
+            // Constrain body to the print column width (Letter minus 0.5in
+            // left+right margins = 7.5in = 720px) so text wraps the same
+            // way it will when printed.
+            var colW = 7.5 * 96; // 720px
             document.body.style.width    = colW + 'px';
             document.body.style.maxWidth = colW + 'px';
 
-            // Give layout one more frame to reflow at the new width
-            requestAnimationFrame(function() {
-              document.querySelectorAll('.print-card').forEach(function(card) {
-                var cardH = card.scrollHeight;
-                if (cardH > pageH) {
-                  card.style.zoom = String(pageH / cardH);
-                }
-              });
+            // Remove card padding before measuring — @media print removes it
+            // anyway, so the screen padding would make the content area 40px
+            // narrower than it is at print time, causing text to wrap more and
+            // scrollHeight to over-estimate the actual print height.
+            document.querySelectorAll('.print-card').forEach(function(card) {
+              card.style.padding = '0';
+            });
 
-              setTimeout(function() { window.print(); }, 200);
+            // Two reflow frames: first for body width, second for padding removal
+            requestAnimationFrame(function() {
+              requestAnimationFrame(function() {
+                document.querySelectorAll('.print-card').forEach(function(card) {
+                  var cardH = card.scrollHeight;
+                  if (cardH > pageH) {
+                    card.style.zoom = String(pageH / cardH);
+                  }
+                });
+
+                setTimeout(function() { window.print(); }, 200);
+              });
             });
           }, 200);
         };
