@@ -1,4 +1,4 @@
-<!-- kind-notes version info is set in APP_VERSION below -->
+<!-- kind-notes v15 · May 13 2025 5:15pm -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -313,6 +313,34 @@
       box-shadow: 0 0 0 3px rgba(217,119,6,.12);
     }
 
+    /* Warning shown when a previously-saved note is manually cleared */
+    .note-clear-warning {
+      margin-top: 7px;
+      padding: 8px 10px;
+      background: #fff7ed;
+      border: 1.5px solid #fed7aa;
+      border-radius: 7px;
+      font-size: .8rem;
+      color: #9a3412;
+      line-height: 1.5;
+    }
+    .note-clear-warning strong { color: #7c2d12; }
+
+    /* Clear Note button — danger-ghost style, small, sits below warning */
+    .note-clear-btn {
+      margin-top: 6px;
+      font-size: .78rem;
+      padding: 4px 10px;
+      border: 1.5px solid #fca5a5;
+      color: #b91c1c;
+      background: transparent;
+    }
+    .note-clear-btn:hover:not(:disabled) {
+      background: #fef2f2;
+      border-color: #f87171;
+      color: #991b1b;
+    }
+
     /* ══════════════════════════════════════════════════
      * ADMIN SHELL
      * ══════════════════════════════════════════════════ */
@@ -576,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      14,
-    timestamp:   'May 13 2025 4:30pm',
-    description: 'Print scaling: switched to zoom property, no overflow clipping',
+    number:      15,
+    timestamp:   'May 13 2025 5:15pm',
+    description: 'Clear Note + sentinel value, zoom threshold 0.93, warning on blank delete',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -645,6 +673,15 @@
   };
 
 
+
+  /* ════════════════════════════════════════════════════════════════
+   * SENTINEL — submitted to Google Form when a student explicitly
+   * clears a previously-saved note via the "Clear Note" button.
+   * Rows with this value are filtered out of all display/export
+   * views and treated as empty on next login. Any subsequent real
+   * comment submitted after a sentinel overrides it normally.
+   * ════════════════════════════════════════════════════════════════ */
+  const SENTINEL = '[CLEARED]';
 
   /* ════════════════════════════════════════════════════════════════
    * SECTION 2 — APPLICATION STATE
@@ -833,13 +870,19 @@
       try { localStorage.setItem(localPinKey, pinInput); } catch(e) {}
 
 
-      // For each subject, take the most-recent note the student has written
+      // For each subject, take the most-recent note the student has written.
+      // Sentinel value ([CLEARED]) is treated as empty — the note loads
+      // as blank and savedText is '' so no warning is shown on login.
       const latestBySubject = {};
       myRows.forEach(row => {
         const subj = row['Subject Name'];
         const ex   = latestBySubject[subj];
         if (!ex || new Date(row['Timestamp']) > new Date(ex.ts)) {
-          latestBySubject[subj] = { text: row['Note Text'] || '', ts: row['Timestamp'] };
+          const rawText = row['Note Text'] || '';
+          latestBySubject[subj] = {
+            text: rawText === SENTINEL ? '' : rawText,
+            ts: row['Timestamp']
+          };
         }
       });
 
@@ -1159,10 +1202,42 @@
     return wrap;
   }
 
+  /* ════════════════════════════════════════════════════════════════
+   * _clearNote — submits sentinel directly, resets in-memory state
+   * so the note card immediately shows as empty this session.
+   * ════════════════════════════════════════════════════════════════ */
+  async function _clearNote(subject, ta, card, hdr, warningEl, clearBtn) {
+    clearBtn.disabled = true;
+    clearBtn.textContent = 'Clearing…';
+
+    try {
+      await _submitOne(subject, SENTINEL);
+    } catch (err) {
+      console.error('Clear note failed:', err);
+    }
+
+    // Reset in-memory state to fully empty
+    state.notes[subject].text      = '';
+    state.notes[subject].savedText = '';
+    ta.value = '';
+
+    // Update card visuals
+    card.classList.remove('note-card--done');
+    const st = hdr.querySelector('.note-status');
+    st.textContent = 'not yet';
+    st.className   = 'note-status note-status--empty';
+
+    warningEl.style.display = 'none';
+    clearBtn.style.display  = 'none';
+
+    _updateSaveStatus();
+    showToast('Note cleared ✓', 'success', 2000);
+  }
+
   function _buildNoteCard(subject) {
-    const n       = state.notes[subject];
-    const hasTxt  = n.text.trim().length > 0;
-    const card    = _div(`note-card${hasTxt ? ' note-card--done' : ''}`);
+    const n      = state.notes[subject];
+    const hasTxt = n.text.trim().length > 0;
+    const card   = _div(`note-card${hasTxt ? ' note-card--done' : ''}`);
 
     const hdr = _div('note-card-header');
     hdr.innerHTML = `
@@ -1178,17 +1253,40 @@
     });
     ta.value = n.text;
 
+    // Warning: shown when textarea is empty but there's a real saved comment.
+    // "Real" means savedText is non-empty — sentinel is converted to '' on load
+    // so it never triggers this warning on login.
+    const warningEl = _div('note-clear-warning');
+    warningEl.style.display = 'none';
+    warningEl.innerHTML = `⚠️ <strong>This note is blank.</strong> Your previously saved comment will still appear in exports — blank notes are ignored to prevent accidental data loss. To truly remove it, use <strong>Clear Note</strong> below, or type a replacement and save.`;
+
+    // Clear Note button: only shown when there's a real saved comment to clear
+    const clearBtn = _el('button', { class: 'btn note-clear-btn' });
+    clearBtn.textContent = 'Clear Note';
+    clearBtn.style.display = 'none';
+    clearBtn.addEventListener('click', () => {
+      _clearNote(subject, ta, card, hdr, warningEl, clearBtn);
+    });
+
     ta.addEventListener('input', () => {
       n.text = ta.value;
-      const full = n.text.trim().length > 0;
+      const full         = n.text.trim().length > 0;
+      const hasRealSaved = n.savedText.trim().length > 0;
+
       card.classList.toggle('note-card--done', full);
       const st = hdr.querySelector('.note-status');
       st.textContent = full ? '✓ written' : 'not yet';
       st.className   = `note-status ${full ? 'note-status--done' : 'note-status--empty'}`;
+
+      // Show warning + clear button only when textarea is empty
+      // AND there's a previously saved comment worth preserving
+      warningEl.style.display = (!full && hasRealSaved) ? '' : 'none';
+      clearBtn.style.display  = (!full && hasRealSaved) ? '' : 'none';
+
       _updateSaveStatus();
     });
 
-    card.append(hdr, ta);
+    card.append(hdr, ta, warningEl, clearBtn);
     return card;
   }
 
@@ -1369,7 +1467,7 @@
       const subject = row['Subject Name'];
       const note    = (row['Note Text'] || '').trim();
       const ts      = row['Timestamp'];
-      if (!author || !subject || !note || !data[author]) return;
+      if (!author || !subject || !note || note === SENTINEL || !data[author]) return;
       const key = `${author}||${subject}`;
       if (!latestByPair[key] || new Date(ts) > new Date(latestByPair[key].ts)) {
         latestByPair[key] = { note, ts };
@@ -1531,7 +1629,7 @@
     // Collect most-recent note per author for this target
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject Name'] === target && (r['Note Text'] || '').trim())
+      .filter(r => r['Subject Name'] === target && (r['Note Text'] || '').trim() && r['Note Text'] !== SENTINEL)
       .forEach(row => {
         const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
@@ -1771,7 +1869,7 @@
     // Collect most-recent note per author
     const byAuthor = {};
     state.csvRows
-      .filter(r => r['Subject Name'] === studentName && (r['Note Text'] || '').trim())
+      .filter(r => r['Subject Name'] === studentName && (r['Note Text'] || '').trim() && r['Note Text'] !== SENTINEL)
       .forEach(row => {
         const a = row['Author Name'];
         if (!byAuthor[a] || new Date(row['Timestamp']) > new Date(byAuthor[a].ts)) {
@@ -1895,7 +1993,7 @@
           setTimeout(function() {
             // 88% of window height approximates the usable printed
             // page area after @page margins.
-            var pageH = window.innerHeight * 0.88;
+            var pageH = window.innerHeight * 0.93;
 
             document.querySelectorAll('.print-card').forEach(function(card) {
               var cardH = card.scrollHeight;
