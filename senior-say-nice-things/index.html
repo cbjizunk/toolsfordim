@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      20,
-    timestamp:   'May 13 2026 7:00pm ET',
-    description: 'Print zoom: raised pageH to 1080px (~90% fill), fixed timestamps',
+    number:      21,
+    timestamp:   'May 13 2026 1:20pm ET',
+    description: 'Print: lower pageH to 1020, break-before:avoid on superlative',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -1980,6 +1980,8 @@
           font-style: italic;
           font-size: .88rem;
           font-weight: 600;
+          break-before: avoid;
+          page-break-before: avoid;
         }
         @media print {
           @page { size: letter; margin: 0.5in; }
@@ -1995,8 +1997,8 @@
             // actual Letter page usable area ≈ 1200px at 96dpi with 0.5in margins.
             // pageH controls both WHEN zoom triggers (cardH > pageH) and
             // HOW MUCH — all zoomed cards fill pageH/1200 of the page uniformly.
-            //   960px → ~80% fill   1080px → ~90% fill   1140px → ~95% fill
-            var pageH = 1080; // adjust this one number to change fill %
+            //   960px → ~80% fill   1020px → ~85% fill   1080px → ~90% fill
+            var pageH = 1020; // adjust this one number to change fill %
 
             // Constrain body to the print column width (Letter minus 0.5in
             // left+right margins = 7.5in = 720px) so text wraps the same
