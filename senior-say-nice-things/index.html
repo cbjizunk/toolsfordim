@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      15,
-    timestamp:   'May 13 2025 5:15pm',
-    description: 'Clear Note + sentinel value, zoom threshold 0.93, warning on blank delete',
+    number:      17,
+    timestamp:   'May 13 2025 6:00pm',
+    description: 'Print: Letter paper, 0.5in margins, 960px page height for zoom calc',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -1258,7 +1258,7 @@
     // so it never triggers this warning on login.
     const warningEl = _div('note-clear-warning');
     warningEl.style.display = 'none';
-    warningEl.innerHTML = `⚠️ <strong>This note is blank.</strong> Your previously saved comment will still appear in exports — blank notes are ignored to prevent accidental data loss. To truly remove it, use <strong>Clear Note</strong> below, or type a replacement and save.`;
+    warningEl.innerHTML = `⚠️ <strong>This note is blank.</strong> Your previously-saved comment will still appear when the notes are printed — blank notes are ignored to prevent accidental data loss. To truly remove it, use <strong>Clear Note</strong> below, or type a replacement and save.`;
 
     // Clear Note button: only shown when there's a real saved comment to clear
     const clearBtn = _el('button', { class: 'btn note-clear-btn' });
@@ -1982,7 +1982,7 @@
           font-weight: 600;
         }
         @media print {
-          @page { margin: 8mm 12mm; }
+          @page { size: letter; margin: 0.5in; }
           .print-card { padding: 0; }
         }
       </style>
@@ -1991,18 +1991,17 @@
       <script>
         window.onload = function() {
           setTimeout(function() {
-            // 88% of window height approximates the usable printed
-            // page area after @page margins.
-            var pageH = window.innerHeight * 0.93;
+            // Usable printed height for US Letter with default browser
+            // Print to PDF margins (0.5in top + 0.5in bottom):
+            // (11in − 1in) × 96px/in = 960px
+            var pageH = (11 - 1) * 96; // 960px
 
             document.querySelectorAll('.print-card').forEach(function(card) {
               var cardH = card.scrollHeight;
               if (cardH > pageH) {
-                // zoom changes actual layout dimensions (unlike
-                // transform:scale which only changes visual rendering).
-                // This means page-break logic sees the shrunk content
-                // and keeps everything — including the award — on one
-                // page. Cards that already fit are not touched.
+                // zoom changes actual layout dimensions (unlike transform:scale).
+                // Page-break logic sees the shrunk size, keeping everything
+                // including the award on one page.
                 card.style.zoom = String(pageH / cardH);
               }
             });
