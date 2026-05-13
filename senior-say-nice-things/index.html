@@ -604,9 +604,9 @@
    * All version displays in the UI read from here.
    * ════════════════════════════════════════════════════════════════ */
   const APP_VERSION = {
-    number:      17,
-    timestamp:   'May 13 2025 6:00pm',
-    description: 'Print: Letter paper, 0.5in margins, 960px page height for zoom calc',
+    number:      18,
+    timestamp:   'May 13 2025 6:20pm',
+    description: 'Print zoom fix: measure at print column width (720px) before zooming',
   };
 
   /* ════════════════════════════════════════════════════════════════
@@ -1991,22 +1991,31 @@
       <script>
         window.onload = function() {
           setTimeout(function() {
-            // Usable printed height for US Letter with default browser
-            // Print to PDF margins (0.5in top + 0.5in bottom):
+            // Usable printed height for US Letter with 0.5in margins:
             // (11in − 1in) × 96px/in = 960px
             var pageH = (11 - 1) * 96; // 960px
 
-            document.querySelectorAll('.print-card').forEach(function(card) {
-              var cardH = card.scrollHeight;
-              if (cardH > pageH) {
-                // zoom changes actual layout dimensions (unlike transform:scale).
-                // Page-break logic sees the shrunk size, keeping everything
-                // including the award on one page.
-                card.style.zoom = String(pageH / cardH);
-              }
-            });
+            // CRITICAL: constrain body to the actual print column width
+            // before measuring scrollHeight. Without this, the popup window
+            // may be wider than the print column (7.5in = 720px at 96dpi),
+            // causing text to wrap less on screen than in print — making
+            // cards measure shorter than they actually print, so zoom never
+            // triggers even when the content overflows.
+            var colW = 7.5 * 96; // 720px — Letter minus 0.5in left+right margins
+            document.body.style.width    = colW + 'px';
+            document.body.style.maxWidth = colW + 'px';
 
-            setTimeout(function() { window.print(); }, 200);
+            // Give layout one more frame to reflow at the new width
+            requestAnimationFrame(function() {
+              document.querySelectorAll('.print-card').forEach(function(card) {
+                var cardH = card.scrollHeight;
+                if (cardH > pageH) {
+                  card.style.zoom = String(pageH / cardH);
+                }
+              });
+
+              setTimeout(function() { window.print(); }, 200);
+            });
           }, 200);
         };
       <\/script>
