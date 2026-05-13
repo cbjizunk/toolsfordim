@@ -374,6 +374,60 @@
     }
     .tracker-table td    { padding: 8px 12px; border-bottom: 1px solid var(--border); }
     .tracker-row--done td { background: #f0fdf4; }
+    .tracker-row-main { cursor: pointer; user-select: none; }
+    .tracker-row-main:hover td { background: var(--accent-light); }
+    .tracker-row--done.tracker-row-main:hover td { background: #dcfce7; }
+    .tracker-expand-toggle {
+      font-size: .75rem;
+      color: var(--text-muted);
+      margin-left: 6px;
+    }
+    .tracker-detail-row td {
+      padding: 0;
+      border-bottom: 2px solid var(--border);
+      background: var(--surface-warm);
+    }
+    .tracker-detail-inner {
+      padding: 12px 16px 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      font-size: .8rem;
+    }
+    .tracker-detail-col h4 {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+    }
+    .tracker-remaining-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .tracker-chip {
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: .75rem;
+      background: #fee2e2;
+      color: #b91c1c;
+      font-weight: 500;
+    }
+    .tracker-note-item {
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.4;
+    }
+    .tracker-note-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .tracker-note-subject {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .tracker-note-text { color: var(--text-muted); font-style: italic; }
 
     .mini-progress      { height: 6px; background: var(--border); border-radius: 99px; overflow: hidden; min-width: 80px; }
     .mini-progress-fill { height: 100%; background: var(--progress-fill); border-radius: 99px; }
@@ -594,10 +648,11 @@
     csvRows:      [],           // parsed CSV rows (all students' data)
     loading:      false,
     saving:       false,
-    adminTab:     'students',   // 'students' | 'tracker' | 'byStudent' | 'export'
+    adminTab:     'students',   // 'students' | 'tracker' | 'byStudent' | 'export' | 'superlatives'
     adminStudent: '',           // selected student in by-student tab
     autoSaveTimer: null,
     students:     _loadStudentList(),  // active list (localStorage > CONFIG)
+    superlatives: _loadSuperlatives(), // { studentName: awardText } — localStorage only
   };
 
   // Prefer a localStorage-stored list over the hardcoded CONFIG default
@@ -610,6 +665,21 @@
       }
     } catch (e) { /* ignore parse errors */ }
     return [...CONFIG.STUDENTS];
+  }
+
+  // Load superlatives from localStorage: { studentName: awardText }
+  function _loadSuperlatives() {
+    try {
+      const raw = localStorage.getItem('kindnotes_superlatives');
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return {};
+  }
+
+  function _saveSuperlatives() {
+    try {
+      localStorage.setItem('kindnotes_superlatives', JSON.stringify(state.superlatives));
+    } catch (e) { /* ignore */ }
   }
 
 
@@ -1151,10 +1221,11 @@
     /* Tab bar */
     const tabBar = _div('admin-tabs');
     [
-      { id: 'students',  label: '👥 Student List'   },
-      { id: 'tracker',   label: '📊 Completion'     },
-      { id: 'byStudent', label: '📖 By Student'     },
-      { id: 'export',    label: '🖨 Export / Print'  },
+      { id: 'students',      label: '👥 Student List'   },
+      { id: 'tracker',       label: '📊 Completion'     },
+      { id: 'byStudent',     label: '📖 By Student'     },
+      { id: 'superlatives',  label: '🏆 Superlatives'   },
+      { id: 'export',        label: '🖨 Export / Print'  },
     ].forEach(({ id, label }) => {
       const tab = _el('button', {
         class: `admin-tab${state.adminTab === id ? ' admin-tab--active' : ''}`,
@@ -1167,10 +1238,11 @@
     /* Content */
     const content = _div('admin-content');
     const tabFns  = {
-      students:  _adminTabStudents,
-      tracker:   _adminTabTracker,
-      byStudent: _adminTabByStudent,
-      export:    _adminTabExport,
+      students:     _adminTabStudents,
+      tracker:      _adminTabTracker,
+      byStudent:    _adminTabByStudent,
+      superlatives: _adminTabSuperlatives,
+      export:       _adminTabExport,
     };
     content.appendChild((tabFns[state.adminTab] || _adminTabStudents)());
 
@@ -1245,25 +1317,41 @@
       return sec;
     }
 
-    // Build author → Set<subject> for non-empty notes
-    const written = {};
-    state.students.forEach(s => { written[s] = new Set(); });
+    // Build author → { written: Set<subject>, notes: { subject: text } }
+    const data = {};
+    state.students.forEach(s => { data[s] = { written: new Set(), notes: {} }; });
+
+    // For each author/subject pair, keep only the most recent note
+    const latestByPair = {};
     state.csvRows.forEach(row => {
       const author  = row['Author Name'];
       const subject = row['Subject Name'];
-      const note    = row['Note Text'];
-      if (author && subject && (note || '').trim() && written[author]) {
-        written[author].add(subject);
+      const note    = (row['Note Text'] || '').trim();
+      const ts      = row['Timestamp'];
+      if (!author || !subject || !note || !data[author]) return;
+      const key = `${author}||${subject}`;
+      if (!latestByPair[key] || new Date(ts) > new Date(latestByPair[key].ts)) {
+        latestByPair[key] = { note, ts };
+      }
+    });
+
+    // Populate data sets from deduplicated pairs
+    Object.entries(latestByPair).forEach(([key, { note }]) => {
+      const [author, subject] = key.split('||');
+      if (data[author]) {
+        data[author].written.add(subject);
+        data[author].notes[subject] = note;
       }
     });
 
     const maxPeers  = state.students.length - 1;
-    const fullyDone = state.students.filter(s => (written[s]?.size ?? 0) >= maxPeers).length;
+    const fullyDone = state.students.filter(s => (data[s]?.written.size ?? 0) >= maxPeers).length;
 
     const summary = _div('tracker-summary');
     summary.innerHTML = `
       <strong>${fullyDone}</strong> of <strong>${state.students.length}</strong>
       students have written about all their classmates.
+      <span class="hint" style="display:inline;margin-left:8px">Click any row to expand.</span>
     `;
 
     const tbl  = document.createElement('table');
@@ -1272,19 +1360,98 @@
     head.innerHTML = '<tr><th>Student</th><th>Written</th><th>Remaining</th><th style="min-width:100px">Progress</th></tr>';
     const body = document.createElement('tbody');
 
+    // Track which row is currently expanded
+    let expandedStudent = null;
+
     [...state.students].sort().forEach(student => {
-      const cnt  = written[student]?.size ?? 0;
-      const left = Math.max(0, maxPeers - cnt);
-      const pct  = maxPeers ? Math.round(cnt / maxPeers * 100) : 0;
-      const tr   = document.createElement('tr');
-      if (pct >= 100) tr.className = 'tracker-row--done';
+      const cnt      = data[student]?.written.size ?? 0;
+      const left     = Math.max(0, maxPeers - cnt);
+      const pct      = maxPeers ? Math.round(cnt / maxPeers * 100) : 0;
+      const allPeers = state.students.filter(s => s !== student).sort();
+      const remaining = allPeers.filter(s => !data[student]?.written.has(s));
+
+      // ── Main summary row ────────────────────────────────────────
+      const tr = document.createElement('tr');
+      tr.className = `tracker-row-main${pct >= 100 ? ' tracker-row--done' : ''}`;
       tr.innerHTML = `
-        <td>${_esc(student)}</td>
+        <td>${_esc(student)} <span class="tracker-expand-toggle">▶</span></td>
         <td>${cnt} / ${maxPeers}</td>
         <td>${left > 0 ? left : '✓ done!'}</td>
         <td><div class="mini-progress"><div class="mini-progress-fill" style="width:${pct}%"></div></div></td>
       `;
-      body.appendChild(tr);
+
+      // ── Detail row (hidden by default) ──────────────────────────
+      const detailTr = document.createElement('tr');
+      detailTr.className = 'tracker-detail-row';
+      detailTr.style.display = 'none';
+
+      const detailTd = document.createElement('td');
+      detailTd.colSpan = 4;
+
+      const inner = _div('tracker-detail-inner');
+
+      // Left column: remaining names as chips
+      const leftCol = _div('tracker-detail-col');
+      const leftHead = document.createElement('h4');
+      leftHead.textContent = remaining.length
+        ? `Still needs to write (${remaining.length})`
+        : '✓ Written about everyone';
+      leftCol.appendChild(leftHead);
+
+      if (remaining.length) {
+        const chipWrap = _div('tracker-remaining-list');
+        remaining.forEach(name => {
+          const chip = _div('tracker-chip');
+          chip.textContent = name;
+          chipWrap.appendChild(chip);
+        });
+        leftCol.appendChild(chipWrap);
+      }
+
+      // Right column: notes they've written, sorted by subject name
+      const rightCol = _div('tracker-detail-col');
+      const rightHead = document.createElement('h4');
+      rightHead.textContent = cnt ? `Notes written (${cnt})` : 'No notes yet';
+      rightCol.appendChild(rightHead);
+
+      const notesWritten = Object.entries(data[student]?.notes ?? {})
+        .sort((a, b) => a[0].localeCompare(b[0]));
+
+      notesWritten.forEach(([subject, noteText]) => {
+        const item = _div('tracker-note-item');
+        item.innerHTML = `
+          <div class="tracker-note-subject">${_esc(subject)}</div>
+          <div class="tracker-note-text">${_esc(noteText)}</div>
+        `;
+        rightCol.appendChild(item);
+      });
+
+      inner.append(leftCol, rightCol);
+      detailTd.appendChild(inner);
+      detailTr.appendChild(detailTd);
+
+      // Toggle on click
+      tr.addEventListener('click', () => {
+        const toggle = tr.querySelector('.tracker-expand-toggle');
+        const isOpen = detailTr.style.display !== 'none';
+
+        // Collapse previously expanded row if different
+        if (expandedStudent && expandedStudent !== student) {
+          const prevDetail = body.querySelector(`[data-expanded="${expandedStudent}"]`);
+          const prevMain   = body.querySelector(`[data-main="${expandedStudent}"]`);
+          if (prevDetail) prevDetail.style.display = 'none';
+          if (prevMain) prevMain.querySelector('.tracker-expand-toggle').textContent = '▶';
+        }
+
+        detailTr.style.display = isOpen ? 'none' : '';
+        toggle.textContent = isOpen ? '▶' : '▼';
+        expandedStudent = isOpen ? null : student;
+      });
+
+      tr.setAttribute('data-main', student);
+      detailTr.setAttribute('data-expanded', student);
+
+      body.append(tr, detailTr);
     });
 
     tbl.append(head, body);
@@ -1353,6 +1520,85 @@
     });
 
     return wrap;
+  }
+
+  /* ── Tab: Superlatives ───────────────────────────────────────── */
+
+  function _adminTabSuperlatives() {
+    const sec = _div('admin-section');
+    sec.innerHTML = `
+      <h2>Superlatives</h2>
+      <p class="hint">
+        Enter a superlative award for each student. These are saved in your
+        browser's localStorage and will appear on printed notes cards.
+        They are <strong>not</strong> submitted to Google Forms and are only
+        visible on this device — back them up with the export button below
+        if needed.
+      </p>
+    `;
+
+    // Build one row per student
+    const grid = _div('');
+    grid.style.cssText = 'display:flex;flex-direction:column;gap:10px;margin-top:4px;';
+
+    [...state.students].sort().forEach(student => {
+      const row = _div('');
+      row.style.cssText = 'display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:center;';
+
+      const nameLbl = _div('');
+      nameLbl.style.cssText = 'font-size:.875rem;font-weight:600;color:var(--text);';
+      nameLbl.textContent = student;
+
+      const inp = _el('input', {
+        type: 'text',
+        class: 'input',
+        placeholder: 'e.g. Most Likely to Start a Band',
+      });
+      inp.value = state.superlatives[student] || '';
+
+      inp.addEventListener('input', () => {
+        // Update state and persist immediately on each keystroke
+        const val = inp.value.trim();
+        if (val) {
+          state.superlatives[student] = val;
+        } else {
+          delete state.superlatives[student];
+        }
+        _saveSuperlatives();
+      });
+
+      row.append(nameLbl, inp);
+      grid.appendChild(row);
+    });
+
+    // Export as text button — useful backup since this is localStorage only
+    const exportBtn = _el('button', { class: 'btn btn-ghost', style: 'margin-top:16px' });
+    exportBtn.textContent = '📋 Copy all as text';
+    exportBtn.addEventListener('click', () => {
+      const lines = [...state.students].sort()
+        .map(s => `${s}: ${state.superlatives[s] || '(none)'}`)
+        .join('\n');
+      navigator.clipboard.writeText(lines)
+        .then(() => showToast('Copied to clipboard.', 'success'))
+        .catch(() => showToast('Copy failed — select manually.', 'error'));
+    });
+
+    // Clear all button
+    const clearBtn = _el('button', { class: 'btn btn-ghost', style: 'margin-top:16px' });
+    clearBtn.textContent = '🗑 Clear all';
+    clearBtn.addEventListener('click', () => {
+      if (!confirm('Clear all superlatives? This cannot be undone.')) return;
+      state.superlatives = {};
+      _saveSuperlatives();
+      render();
+      showToast('All superlatives cleared.', 'info');
+    });
+
+    const btnRow = _div('btn-row');
+    btnRow.append(exportBtn, clearBtn);
+
+    sec.append(grid, btnRow);
+    return sec;
   }
 
   /* ── Tab: Export / Print ─────────────────────────────────────── */
@@ -1432,18 +1678,16 @@
       card.appendChild(ul);
     }
 
-    /* ── SUPERLATIVES PLACEHOLDER ───────────────────────────────
-       When you build the Superlatives feature:
-         1. Create a separate Google Form for superlative entry
-            (one submitter enters all superlatives except their own)
-         2. Publish that Sheet tab as a second CSV
-         3. Fetch it in the admin section, look up studentName here
-         4. Replace this placeholder div with the actual award text
-       ────────────────────────────────────────────────────────── */
-    const suprEl = document.createElement('div');
-    suprEl.className   = 'superlative';
-    suprEl.textContent = '[Superlative award: — not yet added —]';
-    card.appendChild(suprEl);
+    /* ── SUPERLATIVES ────────────────────────────────────────────
+       Populated from Admin → Superlatives tab, stored in
+       localStorage. Shows nothing if no award has been entered.  */
+    const award = state.superlatives[studentName];
+    if (award) {
+      const suprEl = document.createElement('div');
+      suprEl.className   = 'superlative';
+      suprEl.textContent = `🏆 ${award}`;
+      card.appendChild(suprEl);
+    }
 
     return card;
   }
@@ -1487,13 +1731,15 @@
         }
         li:last-child { margin-bottom: 0; }
         .superlative {
-          margin-top: 12px;
+          margin-top: 14px;
           padding: 7px 10px;
-          border: 1.5px dashed #e7e5e4;
+          border: 1.5px solid #fcd34d;
           border-radius: 6px;
-          color: #78716c;
+          background: #fffbeb;
+          color: #92400e;
           font-style: italic;
-          font-size: .8rem;
+          font-size: .88rem;
+          font-weight: 600;
         }
         @media print {
           @page { margin: 8mm 12mm; }
