@@ -2099,6 +2099,13 @@ function initClassDropdown() {
     opt.textContent = classData.class_name;
     selClass.appendChild(opt);
   }
+  // Only one class published (the usual case: this year's seniors) —
+  // select it so students go straight to picking their name.
+  const classIds = Object.keys(STUDENT_DATA);
+  if (classIds.length === 1) {
+    selClass.value = classIds[0];
+    selClass.dispatchEvent(new Event('change'));
+  }
 }
 
 selClass.addEventListener('change', () => {
