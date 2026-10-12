@@ -970,76 +970,10 @@ const STUDENT_DATA = {};
    and baked in by the Python export script. */
 const PRIOR_STATE = {};
 
-/* Form POST URL — in production, this is the real Google Form action URL.
-   For prototyping, saveState() logs to console instead of posting. */
-/* Name map — folder_key to real display name. Baked in at export time.
-   Used to translate obscured CSV names back to real names. */
-const NAME_MAP = {
-  "10QA9SPlbtarhwDh2BwpGokcmymMbwcuS": {
-    "display_name": "Louis B.",
-    "folder_key": "brewster_louis"
-  },
-  "16BH59QVVnagKOikh7BUAo-gRocPKE-Uo": {
-    "display_name": "Charley V.",
-    "folder_key": "vinyard_charley"
-  },
-  "1Kgl1lcSlqyHKD3LRAkCXrMpAlIe-eDsx": {
-    "display_name": "Raian D.",
-    "folder_key": "duremdes_raian"
-  },
-  "1TI1eT6rMMy6XDxZF6LicV29pUG2KnQgx": {
-    "display_name": "Nathaniel H.",
-    "folder_key": "holler_nathaniel"
-  },
-  "1Y-0ZkgWeloB4mupUfbsX-kBEd7WMRSGz": {
-    "display_name": "Lucy L.",
-    "folder_key": "lunday_lucy"
-  },
-  "1ZzfFcYwDm9yoe_n14hd4WcgYLcs2jA34": {
-    "display_name": "Isaiah C.",
-    "folder_key": "coddington_isaiah"
-  },
-  "1_6uqWQpgyxZNeyoIq605DbJ0E10j2rVT": {
-    "display_name": "Camryn H.",
-    "folder_key": "hankins_camryn"
-  },
-  "1a3P7_sUH8fTLZpPOz92ZNL9M6Ip9BqNs": {
-    "display_name": "Henry P.",
-    "folder_key": "pound_henry"
-  },
-  "1aSpzbty5rh21-0Jqvkni9EYfn-UQCYex": {
-    "display_name": "Cooper C.",
-    "folder_key": "costango_cooper"
-  },
-  "1bAWTJLqsC7Oiy3TGkGqsNxajmVlSUePP": {
-    "display_name": "John M.",
-    "folder_key": "maccubbin_john"
-  },
-  "1dyCdq8fPkO2yVYHj-aVRoXlXE0BwrDHb": {
-    "display_name": "Ayden C.",
-    "folder_key": "crenshaw_ayden"
-  },
-  "1heEeBvldd0_MgRpkxRMQ2a5QO9sXoTIu": {
-    "display_name": "Kai F.",
-    "folder_key": "fitzgerald_kai"
-  },
-  "1jWGNb4G30hx8JhR10wZ1pvkif6fIronO": {
-    "display_name": "Tamia C.",
-    "folder_key": "cook_tamia"
-  },
-  "1jX3QtL9gfnaD0HJ3k7iE7JpT_UkJ-2I0": {
-    "display_name": "Isabella B.",
-    "folder_key": "barrantes_isabella"
-  },
-  "1sIDvlPVwNZSZZVr3V2qgz_RhYOa05fkm": {
-    "display_name": "Ericka M.",
-    "folder_key": "mijangos_ericka"
-  }
-};
-
-/* Published CSV URL — if set, the tool fetches live data from this URL on load.
-   Falls back to baked-in STUDENT_DATA if fetch fails. */
-const PUBLISHED_CSV_URL = "https://docs.google.com/spreadsheets/d/1TlqCntojnDXWPobjajrj3uHhYCI4fNXxGReC4DtGNq0/gviz/tq?headers=1&tqx=responseHandler:_onLiveData";
+/* Demo mode — set when the data file says "demo": true (a local, read-only
+   showing of an archived class). Saves come from the file's prior_state and
+   NOTHING is written: no Form POST, no localStorage. */
+let DEMO_MODE = false;
 
 /* Published form responses CSV — if set, loadPriorState() fetches live saves.
    Falls back to baked-in PRIOR_STATE if fetch fails. */
@@ -1077,7 +1011,7 @@ let _liveResponsesSource = null; // "live", "baked", or null
 
 async function _fetchLiveResponses() {
   if (_liveResponses !== null) return;  // Already fetched
-  if (!RESPONSES_CSV_URL || window.location.protocol === 'file:') {
+  if (DEMO_MODE || !RESPONSES_CSV_URL || window.location.protocol === 'file:') {
     _liveResponses = {};
     _liveResponsesSource = "baked";
     return;
@@ -1158,7 +1092,7 @@ async function loadPriorState(studentId) {
   await _fetchLiveResponses();
 
   // Check localStorage first — has the student saved in this browser since last export?
-  try {
+  if (!DEMO_MODE) try {
     const localKey = `linkage_${studentId}`;
     const localData = localStorage.getItem(localKey);
     if (localData) {
@@ -1202,6 +1136,11 @@ async function loadPriorState(studentId) {
 async function saveState(payload) {
   console.log("=== SAVE PAYLOAD ===");
   console.log(JSON.stringify(payload, null, 2));
+
+  if (DEMO_MODE) {
+    // Demo: keep changes on screen only — nothing is saved anywhere.
+    return true;
+  }
 
   // Always stash in localStorage first — survives network failures and page reopens
   try {
@@ -1454,7 +1393,12 @@ function renderUnprocessedBin() {
   }
 
   // Sort checkpoint groups reverse-chronological
-  const sortedCheckpoints = Object.keys(groups).sort().reverse();
+  // Dated groups (YYYY_MM_DD) first, newest first; anything else
+  // (Workspace, Inbox, unknown) after them, alphabetically.
+  const isDated = cp => /^\d{4}_\d{2}_\d{2}$/.test(cp);
+  const keys = Object.keys(groups);
+  const sortedCheckpoints = keys.filter(isDated).sort().reverse()
+    .concat(keys.filter(cp => !isDated(cp)).sort());
 
   for (const cp of sortedCheckpoints) {
     const header = document.createElement('div');
@@ -2297,7 +2241,9 @@ function getFileIcon(ext, mime) {
   if (['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'wma'].includes(ext)) return '🎵';
   if (['mp4', 'mov', 'avi', 'mkv', 'webm', 'wmv'].includes(ext)) return '🎬';
   if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff'].includes(ext)) return '🖼️';
-  if (['txt', 'doc', 'docx', 'rtf'].includes(ext)) return '📄';
+  if (['txt', 'doc', 'docx', 'rtf', 'gdoc'].includes(ext)) return '📄';
+  if (['gsheet'].includes(ext)) return '📊';
+  if (['gslides'].includes(ext)) return '📽️';
   if (['pdf'].includes(ext)) return '📕';
   if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
@@ -2309,6 +2255,9 @@ function getFileIcon(ext, mime) {
 
 /** Format a checkpoint date string like "2026_01_15" to "Jan 15, 2026". */
 function formatCheckpointDate(cp) {
+  // Non-dated groups (WORKSPACE / INBOX are not exported today, but may be).
+  const AUX_LABELS = { WORKSPACE: 'Workspace', INBOX: 'Inbox' };
+  if (AUX_LABELS[cp]) return AUX_LABELS[cp];
   try {
     const parts = cp.split('_');
     if (parts.length === 3) {
@@ -2323,7 +2272,11 @@ function formatCheckpointDate(cp) {
 function formatDate(isoStr) {
   try {
     const d = new Date(isoStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+    // A date-only value (checkpoint date, midnight UTC) must not slip to the
+    // previous evening in US time zones.
+    if (/T00:00:00(\.000)?Z$/.test(isoStr)) opts.timeZone = 'UTC';
+    return d.toLocaleDateString('en-US', opts);
   } catch (e) {
     return isoStr;
   }
@@ -2420,6 +2373,10 @@ async function _fetchLiveData() {
       if (payload.data_as_of) {
         DATA_AS_OF = payload.data_as_of;
       }
+      if (payload.demo === true) {
+        DEMO_MODE = true;
+        Object.assign(PRIOR_STATE, payload.prior_state || {});
+      }
     }
   } catch (e) {
     console.warn('Live data fetch failed, using baked-in:', e);
@@ -2448,10 +2405,23 @@ function _finishStartup() {
     showDataSource(_liveDataLoaded, false);
     _fetchLiveResponses().then(() => {
       showDataSource(_liveDataLoaded, _liveResponsesSource === 'live');
+      if (DEMO_MODE) {
+        const badge = document.getElementById('data-source-badge');
+        badge.textContent = 'demo';
+        badge.className = 'data-source-badge baked';
+      }
     });
   }
   initClassDropdown();
   document.getElementById('header-data-date').textContent = `Files as of ${DATA_AS_OF}`;
+  if (DEMO_MODE) {
+    const banner = document.createElement('div');
+    banner.textContent = 'DEMO — changes are not saved';
+    banner.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);'
+      + 'z-index:9999;background:#b45309;color:#fff;font-weight:600;'
+      + 'padding:4px 14px;border-radius:0 0 6px 6px;font-size:13px;';
+    document.body.appendChild(banner);
+  }
 }
 
 
