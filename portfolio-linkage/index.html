@@ -975,6 +975,20 @@ const PRIOR_STATE = {};
    NOTHING is written: no Form POST, no localStorage. */
 let DEMO_MODE = false;
 
+/* The made-up "Example Student" (data: "example": true) is practice only:
+   shown last, never saved, and its file cards have no real Drive file. */
+function _isExampleStudent(studentId) {
+  for (const cls of Object.values(STUDENT_DATA)) {
+    const st = (cls.students || {})[studentId];
+    if (st) return st.example === true;
+  }
+  return false;
+}
+function _isExampleFile(fileId) {
+  return String(fileId || '').startsWith('example-');
+}
+const EXAMPLE_FILE_MSG = 'Example file — there is no real file behind it';
+
 /* Published form responses CSV — if set, loadPriorState() fetches live saves.
    Falls back to baked-in PRIOR_STATE if fetch fails. */
 const RESPONSES_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRs2x1-_DTlRVkp-LQZhPNABgBrGPucZv9Ao65a7lEO3ZeUilXmz4G23Wj7MK10Vf-hIgpYtxWwxQfb/pub?gid=1092930835&single=true&output=csv";
@@ -1088,6 +1102,7 @@ function _processResponsePayload(payload, state) {
  * @returns {Object|null} Prior state object or null if no prior save.
  */
 async function loadPriorState(studentId) {
+  if (_isExampleStudent(studentId)) return null;   // always starts fresh
   // Ensure live responses are fetched
   await _fetchLiveResponses();
 
@@ -1137,8 +1152,8 @@ async function saveState(payload) {
   console.log("=== SAVE PAYLOAD ===");
   console.log(JSON.stringify(payload, null, 2));
 
-  if (DEMO_MODE) {
-    // Demo: keep changes on screen only — nothing is saved anywhere.
+  if (DEMO_MODE || _isExampleStudent(payload.student_id)) {
+    // Demo / Example Student: keep changes on screen only — nothing is saved.
     return true;
   }
 
@@ -1582,7 +1597,9 @@ function createFileCard(file) {
   card.innerHTML = `
     ${pathHtml}
     <div class="file-main">
-      <div class="file-name"><a href="${driveUrl}" target="_blank" rel="noopener" title="Click to open in Google Drive. You must be logged into a Google account that has access to your album folder (usually your school account). If you're on a personal device, make sure you're signed in to the right account in your browser.">${escHtml(file.name)}</a></div>
+      <div class="file-name">${_isExampleFile(file.id)
+        ? `<a href="#" onclick="showToast(EXAMPLE_FILE_MSG); return false;" title="${EXAMPLE_FILE_MSG}">${escHtml(file.name)}</a>`
+        : `<a href="${driveUrl}" target="_blank" rel="noopener" title="Click to open in Google Drive. You must be logged into a Google account that has access to your album folder (usually your school account). If you're on a personal device, make sure you're signed in to the right account in your browser.">${escHtml(file.name)}</a>`}</div>
       <span class="file-type-icon" title="${escHtml(file.mime)}">${icon}</span>
     </div>
     <div class="file-date">${formatDate(file.modified)} · ${sizeStr}</div>
@@ -1758,7 +1775,8 @@ function showFileContextMenu(e, fileId) {
   const driveUrl = `https://drive.google.com/file/d/${fileId}/view`;
 
   let items = [
-    { icon: '🔗', label: 'Open in Drive', action: () => window.open(driveUrl, '_blank') },
+    { icon: '🔗', label: 'Open in Drive', action: () => _isExampleFile(fileId)
+        ? showToast(EXAMPLE_FILE_MSG) : window.open(driveUrl, '_blank') },
     { separator: true },
   ];
 
@@ -2036,7 +2054,8 @@ saveBtn.addEventListener('click', async () => {
 
     saveBtn.className = 'save-btn success';
     saveBtn.textContent = 'Saved ✓';
-    showToast('Changes saved successfully');
+    showToast((DEMO_MODE || _isExampleStudent(payload.student_id))
+      ? 'Practice only — nothing was saved' : 'Changes saved successfully');
 
     // After 2s, revert to normal disabled state
     setTimeout(() => {
@@ -2093,13 +2112,16 @@ selClass.addEventListener('change', () => {
   }
 
   const classData = STUDENT_DATA[classId];
+  // Real students alphabetically; the Example Student always last.
   const sorted = Object.entries(classData.students)
-    .sort((a, b) => a[1].display_name.localeCompare(b[1].display_name));
+    .sort((a, b) => (!!a[1].example - !!b[1].example)
+      || a[1].display_name.localeCompare(b[1].display_name));
 
   for (const [studentId, student] of sorted) {
     const opt = document.createElement('option');
     opt.value = studentId;
-    opt.textContent = student.display_name;
+    opt.textContent = student.example
+      ? `${student.display_name} (practice — not saved)` : student.display_name;
     selStudent.appendChild(opt);
   }
 
@@ -2126,6 +2148,9 @@ selStudent.addEventListener('change', async () => {
   }
 
   await loadStudent(classId, studentId);
+  if (_isExampleStudent(studentId)) {
+    showToast('Example Student — practise freely, nothing here is saved');
+  }
 });
 
 /** Load a student's data and prior state, then render the workspace. */

@@ -464,6 +464,42 @@
           "display_name": "Josiah",
           "files": [
             {
+              "id": "1ems-k-LJTi8rJXRvFAqxwgx57r60AW5g",
+              "name": "Onyx's Theme.pdf",
+              "path": "Q1/2026_10_11/Onyx's Theme.pdf",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 125952,
+              "mime": "application/pdf",
+              "ext": "pdf",
+              "first_seen": "2026-10-12T16:23:07Z"
+            },
+            {
+              "id": "1QX99s5q5lllNUmDjrit1HtK9fCokTxRv",
+              "name": "Onyx's Theme.mp3",
+              "path": "Q1/2026_10_11/Onyx's Theme.mp3",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 1258291,
+              "mime": "audio/mpeg",
+              "ext": "mp3",
+              "first_seen": "2026-10-12T16:23:07Z"
+            },
+            {
+              "id": "1jxhC8TDgP8euYnwY3c1b0r0GWPjP_YKh2NScpAcn0qo",
+              "name": "2026-10-11",
+              "path": "Q1/2026_10_11/2026-10-11",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 1024,
+              "mime": "application/vnd.google-apps.document",
+              "ext": "gdoc",
+              "first_seen": "2026-10-12T16:23:07Z"
+            },
+            {
               "id": "1gys4bRML9ntcqQmhVPBt2YtJZqzf4jHc",
               "name": "Screenshot 2026-09-28 133507.png",
               "path": "Q1/2026_09_27/Noteflight/Screenshot 2026-09-28 133507.png",
@@ -557,6 +593,18 @@
         "s_0565349a": {
           "display_name": "Khai",
           "files": [
+            {
+              "id": "17HuIqHxk3wmCTFENhjO9mOU4tCtreAu5",
+              "name": "George Washington Carver Center for Arts & Technology 3.m4a",
+              "path": "Q1/2026_10_11/George Washington Carver Center for Arts & Technology 3.m4a",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 6815744,
+              "mime": "audio/m4a",
+              "ext": "m4a",
+              "first_seen": "2026-10-12T16:23:07Z"
+            },
             {
               "id": "1_Ey_5xQRu5UwEmflz5MiqkQ9fXNJIaqX",
               "name": "progress first song",
