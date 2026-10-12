@@ -9,6 +9,18 @@
           "display_name": "Ava",
           "files": [
             {
+              "id": "1_1nddXs91RyiZn9BVOGSxvZng_0EY8DvVv20aI7zbAs",
+              "name": "Album Progress Checks - 10/25",
+              "path": "Q1/2026_10_25/Album Progress Checks - 10/25",
+              "relative_path": "Q1/2026_10_25/",
+              "checkpoint": "2026_10_25",
+              "modified": "2026-10-25T00:00:00Z",
+              "size": 156672,
+              "mime": "application/vnd.google-apps.document",
+              "ext": "gdoc",
+              "first_seen": "2026-10-12T17:03:09Z"
+            },
+            {
               "id": "1eGD6hIQtgEIwuPquC2eQBkIbpqzIWWxF",
               "name": "Sidewalk and Grass.mp4",
               "path": "Q1/2026_10_11/Sidewalk and Grass.mp4",
@@ -97,6 +109,30 @@
         "s_afe798a4": {
           "display_name": "Bakari",
           "files": [
+            {
+              "id": "1Cf46_TLlMg3POdo5-Eko6--1L5bQ-wue",
+              "name": "string-quartet-no-1.pdf",
+              "path": "Q1/2026_10_11/string-quartet-no-1.pdf",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 404480,
+              "mime": "application/pdf",
+              "ext": "pdf",
+              "first_seen": "2026-10-12T17:07:34Z"
+            },
+            {
+              "id": "19azNyHy_FXyB0GbHpfM470bzL0QbZdLY",
+              "name": "string-quartet-no-1.custom_score.mp3",
+              "path": "Q1/2026_10_11/string-quartet-no-1.custom_score.mp3",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 29884416,
+              "mime": "audio/mpeg",
+              "ext": "mp3",
+              "first_seen": "2026-10-12T17:07:34Z"
+            },
             {
               "id": "1GnZN89xo861qoFeN7JhFl_WPFHnD2k0H",
               "name": "symphony-no-3.pdf",
@@ -312,6 +348,18 @@
           "display_name": "Donya",
           "files": [
             {
+              "id": "18bISeL-AsR6Yvq8ikONTafx49nAI6g0g",
+              "name": "riff for window",
+              "path": "Q1/2026_10_11/riff for window",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 440320,
+              "mime": "video/unknown",
+              "ext": "",
+              "first_seen": "2026-10-12T17:33:20Z"
+            },
+            {
               "id": "1FByzdMO9E1-iXZQ9VIq2OSKGAFBjF68neDuhBfN_BqY",
               "name": "HiMrBassett",
               "path": "Q1/2026_09_27/HiMrBassett",
@@ -393,6 +441,42 @@
         "s_277e04fe": {
           "display_name": "Eland",
           "files": [
+            {
+              "id": "14qLD6C17PDS_KKfJ9lp63CedCqYn_-eY",
+              "name": "Verse 1 - Untitled 2 (Piano + Drums) Pre-Concept.m4a",
+              "path": "Q1/2026_10_11/Verse 1 - Untitled 2 (Piano + Drums) Pre-Concept.m4a",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 3460301,
+              "mime": "audio/m4a",
+              "ext": "m4a",
+              "first_seen": "2026-10-12T17:33:20Z"
+            },
+            {
+              "id": "1Sj_vY8Ncx7jofte60ael5dUEMRLqd-a8",
+              "name": "Verse 1 - Untitled (+ Bass).m4a",
+              "path": "Q1/2026_10_11/Verse 1 - Untitled (+ Bass).m4a",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 1992294,
+              "mime": "audio/m4a",
+              "ext": "m4a",
+              "first_seen": "2026-10-12T17:33:20Z"
+            },
+            {
+              "id": "1WBe5eX41q9bpA1F8eBBSlYun8SdmvKrh",
+              "name": "Piano + Saxophone(Vocals) ending vamp.m4a",
+              "path": "Q1/2026_10_11/Piano + Saxophone(Vocals) ending vamp.m4a",
+              "relative_path": "Q1/2026_10_11/",
+              "checkpoint": "2026_10_11",
+              "modified": "2026-10-11T00:00:00Z",
+              "size": 487424,
+              "mime": "audio/m4a",
+              "ext": "m4a",
+              "first_seen": "2026-10-12T17:33:20Z"
+            },
             {
               "id": "1OwNfA89uEBKatzv-0wVqyw99c3ZBAx3T",
               "name": "Untitled_Verse1.mp4",
@@ -887,6 +971,18 @@
         "s_253cde69": {
           "display_name": "Stazie",
           "files": [
+            {
+              "id": "15WjMohJnB0IOqxCR2Z2MAOVVrC-lks7xx5cNFMzvZJY",
+              "name": "10/25 Senior albumm doc :)",
+              "path": "Q1/2026_10_25/10/25 Senior albumm doc :)",
+              "relative_path": "Q1/2026_10_25/",
+              "checkpoint": "2026_10_25",
+              "modified": "2026-10-25T00:00:00Z",
+              "size": 650240,
+              "mime": "application/vnd.google-apps.document",
+              "ext": "gdoc",
+              "first_seen": "2026-10-12T17:03:09Z"
+            },
             {
               "id": "13AfPV-GIeqw_Gv1uLPrnLsZ8IyfEr02p",
               "name": "more melodic big chord noodley 9/30",
